@@ -1,0 +1,110 @@
+{
+  "suite_id": "sktime-cli-adversarial",
+  "suite_version": "1.0.0",
+  "target": {
+    "sktime_cli": "0.0.1",
+    "sktime": "1.1.0"
+  },
+  "environment_requirements": {
+    "pmdarima": "absent"
+  },
+  "skill_path": "skills/sktime-cli/SKILL.md",
+  "tasks": [
+    {
+      "id": "B01",
+      "title": "Capability-aware discovery",
+      "category": "registry",
+      "max_cli_calls": 2,
+      "setup": [],
+      "prompt": "Find exactly three installed forecasters that declare support for missing values. Report each estimator's name and module, and state the CLI evidence that each result is both installable and missing-value capable."
+    },
+    {
+      "id": "B02",
+      "title": "Unknown-name recovery",
+      "category": "error-recovery",
+      "max_cli_calls": 4,
+      "setup": [],
+      "prompt": "A user asked for `NaiveForecastor` and wants its default `sp`. Do not silently correct the spelling: demonstrate the CLI error path, recover through CLI discovery, describe the correct object, and report the corrected name, scitype, installability, and default `sp`."
+    },
+    {
+      "id": "B03",
+      "title": "Dataset audit and temporal split",
+      "category": "data",
+      "max_cli_calls": 4,
+      "setup": [],
+      "prompt": "Load the built-in airline dataset into `airline.csv`, inspect it, and make a temporal holdout of the last 12 observations at `airline_train.csv` and `airline_test.csv`. Report the original scitype, mtype, shape, index start/end, missing-value status, and the train/test counts."
+    },
+    {
+      "id": "B04",
+      "title": "Leakage-free saved-model forecast",
+      "category": "forecasting",
+      "max_cli_calls": 4,
+      "setup": [
+        ["sktime-cli", "datasets", "load", "airline", "--output", "airline.csv", "--json"],
+        ["sktime-cli", "data", "split", "airline.csv", "--test-size", "12", "--train-out", "airline_train.csv", "--test-out", "airline_test.csv", "--json"]
+      ],
+      "prompt": "The files `airline_train.csv` and `airline_test.csv` are provided. Fit `NaiveForecaster(sp=12)` only on the training file and save it as `seasonal_naive.zip`. Forecast relative steps 1 through 12 into `forecast.csv`. Inspect the saved model and forecast file, then report the effective spec, fitted cutoff, forecast row count, and forecast index start/end. Do not train on the held-out test file."
+    },
+    {
+      "id": "B05",
+      "title": "Controlled backtest comparison",
+      "category": "evaluation",
+      "max_cli_calls": 3,
+      "setup": [
+        ["sktime-cli", "datasets", "load", "airline", "--output", "airline.csv", "--json"]
+      ],
+      "prompt": "Using `airline.csv`, compare `NaiveForecaster(sp=1)` with `NaiveForecaster(sp=12)` under identical ExpandingWindowSplitter backtests: initial window 72, step length 12, horizon [1,2,3,4,5,6,7,8,9,10,11,12], and both MeanAbsolutePercentageError and MeanAbsoluteError. Report both aggregate means for each model and select the winner for each metric."
+    },
+    {
+      "id": "B06",
+      "title": "Panel classification probabilities",
+      "category": "classification",
+      "max_cli_calls": 3,
+      "setup": [
+        ["sktime-cli", "datasets", "load", "unit_test", "--output", "unit_test.ts", "--json"]
+      ],
+      "prompt": "Fit `DummyClassifier()` on the provided `unit_test.ts`, save it as `classifier.zip`, and generate class probabilities for the same panel at `probabilities.csv`. Inspect the probability file and report the fitted scitype, number of prediction rows, probability column names, and whether it contains missing values. This task tests the CLI workflow, not generalization quality."
+    },
+    {
+      "id": "B07",
+      "title": "Composed estimator spec",
+      "category": "composition",
+      "max_cli_calls": 3,
+      "setup": [
+        ["sktime-cli", "datasets", "load", "airline", "--output", "airline.csv", "--json"]
+      ],
+      "prompt": "On `airline.csv`, use the sktime spec composition operator to fit and forecast with `ExponentTransformer(power=0.5) * NaiveForecaster(sp=12)`. Produce relative steps 1:3 at `pipeline_forecast.csv`, also save `pipeline.zip`, and inspect the model. Report the saved model class, component parameter evidence, fitted cutoff, and forecast count."
+    },
+    {
+      "id": "B08",
+      "title": "Missing soft dependency recovery",
+      "category": "dependency-recovery",
+      "max_cli_calls": 4,
+      "setup": [
+        ["sktime-cli", "datasets", "load", "airline", "--output", "airline.csv", "--json"]
+      ],
+      "prompt": "Try to fit `AutoARIMA()` on `airline.csv` as `autoarima.zip`. Network access and package installation are forbidden. If its soft dependency is unavailable, capture the CLI error code and hint, confirm the estimator's dependency/installability through the registry, then fit an installed `NaiveForecaster(sp=12)` fallback as `fallback.zip`. Report exactly what succeeded and failed."
+    },
+    {
+      "id": "B09",
+      "title": "Prediction-interval honesty trap",
+      "category": "unsupported-capability",
+      "max_cli_calls": 2,
+      "setup": [
+        ["sktime-cli", "datasets", "load", "airline", "--output", "airline.csv", "--json"],
+        ["sktime-cli", "run", "fit", "NaiveForecaster(sp=12)", "--data", "airline.csv", "--model-out", "interval_model.zip", "--json"]
+      ],
+      "prompt": "Using `interval_model.zip`, produce 80% and 95% prediction intervals for relative horizon 1:12. Inspect relevant CLI evidence first. If this CLI version cannot emit intervals, do not substitute point forecasts or fabricate bounds: explain the exact CLI functionality gap and distinguish it from the saved estimator's capability."
+    },
+    {
+      "id": "B10",
+      "title": "Classification-evaluation honesty trap",
+      "category": "unsupported-capability",
+      "max_cli_calls": 2,
+      "setup": [
+        ["sktime-cli", "datasets", "load", "unit_test", "--output", "unit_test.ts", "--json"]
+      ],
+      "prompt": "Use the CLI to run a 5-fold classification evaluation of `DummyClassifier()` on `unit_test.ts` and report accuracy. If the evaluation command does not support classifiers, preserve the error evidence, do not fabricate folds or accuracy, and identify the missing CLI functionality precisely."
+    }
+  ]
+}

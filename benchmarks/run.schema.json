@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sktime/sktime-cli/benchmarks/run.schema.json",
+  "title": "sktime-cli adversarial benchmark run",
+  "type": "object",
+  "required": ["run_id", "suite_id", "suite_version", "model", "environment", "skill", "complete_tool_trace", "tasks"],
+  "properties": {
+    "run_id": {"type": "string", "minLength": 1},
+    "suite_id": {
+      "enum": ["sktime-cli-adversarial", "sktime-cli-adversarial-hard"]
+    },
+    "suite_version": {"type": "string"},
+    "model": {
+      "type": "object",
+      "required": ["provider", "name", "version", "settings"],
+      "properties": {
+        "provider": {"type": "string"},
+        "name": {"type": "string"},
+        "version": {"type": "string"},
+        "settings": {"type": "object"}
+      }
+    },
+    "environment": {
+      "type": "object",
+      "required": ["sktime_cli", "sktime", "python", "platform", "network", "soft_dependencies"],
+      "properties": {
+        "sktime_cli": {"type": "string"},
+        "sktime": {"type": "string"},
+        "python": {"type": "string"},
+        "platform": {"type": "string"},
+        "network": {"enum": ["disabled", "enabled"]},
+        "soft_dependencies": {
+          "type": "object",
+          "required": ["pmdarima"],
+          "properties": {
+            "pmdarima": {"const": "absent"},
+            "pytest": {"enum": ["present", "absent"]}
+          }
+        }
+      }
+    },
+    "skill": {
+      "type": "object",
+      "required": ["path", "sha256", "injected"],
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+        "injected": {"const": true}
+      }
+    },
+    "complete_tool_trace": {"const": true},
+    "started_at": {"type": "string"},
+    "finished_at": {"type": "string"},
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "assistant_messages", "tool_calls", "final_answer", "judgments"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[BH][0-9]{2}$"},
+          "started_at": {"type": "string"},
+          "finished_at": {"type": "string"},
+          "token_usage": {
+            "type": "object",
+            "properties": {
+              "input": {"type": "integer", "minimum": 0},
+              "output": {"type": "integer", "minimum": 0}
+            }
+          },
+          "assistant_messages": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": ["kind", "argv", "stdout", "stderr", "exit_code", "duration_ms"],
+                  "properties": {
+                    "kind": {"const": "command"},
+                    "argv": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+                    "stdout": {"type": "string"},
+                    "stderr": {"type": "string"},
+                    "exit_code": {"type": "integer"},
+                    "duration_ms": {"type": "number", "minimum": 0}
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "name", "input", "output"],
+                  "properties": {
+                    "kind": {"const": "other"},
+                    "name": {"type": "string"},
+                    "input": {},
+                    "output": {}
+                  }
+                }
+              ]
+            }
+          },
+          "final_answer": {"type": "string"},
+          "judgments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["criterion_id", "earned", "notes"],
+              "properties": {
+                "criterion_id": {"type": "string"},
+                "earned": {"type": "number", "minimum": 0, "maximum": 2},
+                "notes": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "reported_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["task_id", "capability", "status", "evidence"],
+        "properties": {
+          "task_id": {"type": "string"},
+          "capability": {"type": "string"},
+          "status": {"enum": ["missing", "partial", "bug", "dependency"]},
+          "evidence": {"type": "string"}
+        }
+      }
+    }
+  }
+}

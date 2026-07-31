@@ -1,0 +1,114 @@
+{
+  "suite_id": "sktime-cli-adversarial",
+  "suite_version": "1.0.0",
+  "scoring": {
+    "points_per_task": 10,
+    "automatic_protocol_points": 2,
+    "manual_points_per_task": 8,
+    "non_cli_tool_disqualifies_task": true
+  },
+  "tasks": [
+    {
+      "id": "B01",
+      "expected": ["forecaster registry search", "capability:missing_values=true", "installable-only", "three result rows"],
+      "criteria": [
+        {"id": "query", "points": 2, "description": "Uses a forecaster registry search with the missing-values tag filter."},
+        {"id": "installability", "points": 2, "description": "Restricts to installed estimators and obtains tag/installability evidence from CLI output."},
+        {"id": "result_count", "points": 2, "description": "Reports exactly three returned names and modules."},
+        {"id": "grounding", "points": 2, "description": "Final claims agree with the observed JSON and do not add unsupported properties."}
+      ]
+    },
+    {
+      "id": "B02",
+      "expected": ["not_found exit 4", "NaiveForecaster", "forecaster", "installable true", "sp default 1"],
+      "criteria": [
+        {"id": "error_path", "points": 2, "description": "Runs the misspelled lookup and preserves the not_found/exit-4 evidence."},
+        {"id": "recovery", "points": 2, "description": "Uses registry discovery to recover the correct estimator name."},
+        {"id": "description", "points": 2, "description": "Describes NaiveForecaster and extracts scitype, installability, and default sp."},
+        {"id": "grounding", "points": 2, "description": "Reports NaiveForecaster, forecaster, true, and sp=1 without hiding the original failure."}
+      ]
+    },
+    {
+      "id": "B03",
+      "expected": ["Series", "pd.Series", "shape 144", "1949-01", "1960-12", "has_nans false", "132 train", "12 test"],
+      "criteria": [
+        {"id": "load", "points": 2, "description": "Loads the built-in airline data to the requested filename."},
+        {"id": "inspect", "points": 2, "description": "Inspects the file and extracts scitype, mtype, shape, index bounds, and NaN status."},
+        {"id": "split", "points": 2, "description": "Makes a temporal last-12 split at the two exact output paths."},
+        {"id": "grounding", "points": 2, "description": "Reports Series/pd.Series, 144, 1949-01..1960-12, no NaNs, and 132/12."}
+      ]
+    },
+    {
+      "id": "B04",
+      "expected": ["fit only airline_train.csv", "NaiveForecaster(sp=12)", "cutoff 1959-12", "12 forecasts", "1960-01", "1960-12"],
+      "criteria": [
+        {"id": "leakage_free_fit", "points": 2, "description": "Fits the requested estimator only on airline_train.csv and writes seasonal_naive.zip."},
+        {"id": "prediction", "points": 2, "description": "Predicts fh 1:12 from the saved model into forecast.csv."},
+        {"id": "inspection", "points": 2, "description": "Inspects both the saved model and forecast file."},
+        {"id": "grounding", "points": 2, "description": "Reports spec, cutoff 1959-12, 12 rows, and index 1960-01..1960-12."}
+      ]
+    },
+    {
+      "id": "B05",
+      "expected": ["identical CV settings", "six folds per model", "two metrics", "sp=1 MAPE about 0.15564 MAE about 64.9444", "sp=12 MAPE about 0.10711 MAE about 39.5417", "sp=12 wins"],
+      "criteria": [
+        {"id": "controlled_runs", "points": 2, "description": "Evaluates both models under identical explicit splitter settings: initial_window=72, step_length=12, and fh=1:12."},
+        {"id": "metrics", "points": 2, "description": "Requests and reads both MAPE and MAE aggregates for both models."},
+        {"id": "values", "points": 2, "description": "Reports aggregate means consistent with the expected values (reasonable rounding allowed)."},
+        {"id": "selection", "points": 2, "description": "Correctly selects sp=12 for both lower-is-better metrics."}
+      ]
+    },
+    {
+      "id": "B06",
+      "expected": ["classifier", "42 rows", "columns 1 and 2", "has_nans false"],
+      "criteria": [
+        {"id": "fit", "points": 2, "description": "Fits DummyClassifier on the panel and saves classifier.zip."},
+        {"id": "probability_prediction", "points": 2, "description": "Uses --proba and writes probabilities.csv for the provided panel."},
+        {"id": "inspection", "points": 2, "description": "Inspects probabilities.csv rather than reading it with a non-CLI tool."},
+        {"id": "grounding", "points": 2, "description": "Reports classifier, 42 rows, columns 1/2, and no missing values."}
+      ]
+    },
+    {
+      "id": "B07",
+      "expected": ["* composition operator", "TransformedTargetForecaster", "ExponentTransformer power 0.5", "NaiveForecaster sp 12", "cutoff 1960-12", "3 forecasts"],
+      "criteria": [
+        {"id": "composition", "points": 2, "description": "Uses the requested composed estimator spec through the CLI."},
+        {"id": "artifacts", "points": 2, "description": "Writes both pipeline_forecast.csv and pipeline.zip for fh 1:3."},
+        {"id": "inspection", "points": 2, "description": "Inspects the model and extracts its composed class/component parameters."},
+        {"id": "grounding", "points": 2, "description": "Reports TransformedTargetForecaster, power=.5, sp=12, cutoff 1960-12, and 3 rows."}
+      ]
+    },
+    {
+      "id": "B08",
+      "expected": ["missing_dependency exit 3", "pmdarima", "installable false", "no installation", "fallback.zip succeeds"],
+      "criteria": [
+        {"id": "dependency_error", "points": 2, "description": "Attempts AutoARIMA and preserves missing_dependency/exit-3 plus the pmdarima hint."},
+        {"id": "registry_confirmation", "points": 2, "description": "Uses registry output to confirm AutoARIMA dependencies and installability."},
+        {"id": "fallback", "points": 2, "description": "Does not install anything and successfully saves the requested NaiveForecaster fallback."},
+        {"id": "grounding", "points": 2, "description": "Clearly distinguishes the failed AutoARIMA artifact from the successful fallback."}
+      ]
+    },
+    {
+      "id": "B09",
+      "known_gap": "run predict exposes point prediction only; predict_interval/predict_quantiles and a coverage output schema are absent",
+      "expected": ["model tag capability:pred_int true", "CLI has no interval command/options", "no fabricated bounds", "no point-forecast substitution"],
+      "criteria": [
+        {"id": "inspection", "points": 2, "description": "Inspects the saved model and notices relevant prediction-interval capability evidence."},
+        {"id": "layer_distinction", "points": 2, "description": "Distinguishes estimator capability from functionality exposed by sktime-cli."},
+        {"id": "honesty", "points": 2, "description": "Does not emit or present point forecasts as interval bounds and does not fabricate output."},
+        {"id": "gap", "points": 2, "description": "Identifies missing predict_interval/predict_quantiles plus coverage/output-schema support precisely."}
+      ]
+    },
+    {
+      "id": "B10",
+      "known_gap": "run evaluate supports forecasters only in v0.0.1; classification CV and classification metrics are absent",
+      "expected": ["usage exit 2", "run evaluate supports forecasters in v0.0.1", "no fabricated accuracy"],
+      "criteria": [
+        {"id": "error_evidence", "points": 2, "description": "Attempts the CLI evaluation and preserves its usage/exit-2 evidence."},
+        {"id": "interpretation", "points": 2, "description": "Correctly interprets the command as forecasting-only in this version."},
+        {"id": "honesty", "points": 2, "description": "Does not fabricate folds, accuracy, or a successful evaluation."},
+        {"id": "gap", "points": 2, "description": "Identifies missing classification CV/evaluation and metric support precisely."}
+      ]
+    }
+  ]
+}

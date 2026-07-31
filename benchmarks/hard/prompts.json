@@ -1,0 +1,70 @@
+{
+  "suite_id": "sktime-cli-adversarial-hard",
+  "suite_version": "1.0.0",
+  "target": {
+    "sktime_cli": "0.0.1",
+    "sktime": "1.1.0"
+  },
+  "environment_requirements": {
+    "pmdarima": "absent",
+    "pytest": "present"
+  },
+  "skill_path": "skills/sktime-cli/SKILL.md",
+  "tasks": [
+    {
+      "id": "H01",
+      "title": "Forecasting tournament and holdout deployment",
+      "category": "forecasting-model-selection",
+      "max_cli_calls": 11,
+      "setup": [],
+      "prompt": "Build an auditable forecasting deployment from the built-in airline data. Load and inspect it, reserve the final 12 observations at `airline_test.csv`, and keep earlier observations at `airline_train.csv`. On training data only, compare `NaiveForecaster(sp=1)`, `NaiveForecaster(sp=12)`, and `PolynomialTrendForecaster(degree=1)` with identical `ExpandingWindowSplitter(initial_window=72, step_length=12, fh=[1,2,3,4,5,6,7,8,9,10,11,12])` backtests using both MeanAbsolutePercentageError and MeanAbsoluteError. Select by lowest mean MAPE, using MAE as the tie-breaker. Fit the winner on training data as `champion.zip`, forecast 1:12 into `champion_forecast.csv`, and inspect both artifacts. Report all aggregate means, the decision, cutoff, forecast shape/index, and whether sktime-cli alone let you calculate an error against the untouched holdout. Do not train on or evaluate candidates against the holdout."
+    },
+    {
+      "id": "H02",
+      "title": "Exogenous forecasting pipeline",
+      "category": "forecasting-exogenous",
+      "max_cli_calls": 11,
+      "setup": [],
+      "prompt": "Create an exogenous forecasting workflow from the built-in longley dataset. Load it as `longley.csv` with its generated X file, inspect y and X, and split the final three years while splitting exogenous data alongside y. On training data, compare `YfromX(LinearRegression())` using X against `NaiveForecaster(strategy='drift')` without X. Both must use `ExpandingWindowSplitter(initial_window=7, step_length=2, fh=[1,2])`, MeanAbsolutePercentageError, and MeanAbsoluteError. Select the lower-MAPE candidate, fit it as `longley_champion.zip`, predict the three held-out years with the matching test X into `longley_forecast.csv`, and inspect model/output. Report generated paths, split sizes, both aggregate means, winner, cutoff, forecast index/count, and any limitation on computing the final holdout error with CLI-only operations. `LinearRegression()` may appear only inside the sktime-cli estimator spec; do not run Python."
+    },
+    {
+      "id": "H03",
+      "title": "Honest classification candidate assessment",
+      "category": "classification-boundary",
+      "max_cli_calls": 12,
+      "setup": [],
+      "prompt": "Prepare an honest classification assessment using the built-in `unit_test` train and test splits at `unit_train.ts` and `unit_test.ts`. Inspect both. Fit `DummyClassifier(strategy='prior')` as `dummy.zip` and `KNeighborsTimeSeriesClassifier(n_neighbors=1, distance='dtw')` as `knn.zip` on training data only. Produce test-set probabilities at `dummy_proba.csv` and `knn_proba.csv` and inspect both outputs. The stakeholder asks you to choose the better model by 5-fold training accuracy and report test accuracy. Use exactly one `run evaluate` attempt on a classifier to establish whether the CLI supports that request. Deliver every supported artifact, but if classification evaluation or accuracy calculation is unavailable, preserve the error and refuse to rank the candidates or fabricate either accuracy."
+    },
+    {
+      "id": "H04",
+      "title": "Artifact reproduction and nested mutation",
+      "category": "model-reproducibility",
+      "max_cli_calls": 10,
+      "setup": [
+        ["sktime-cli", "datasets", "load", "airline", "--output", "source.csv", "--json"],
+        ["sktime-cli", "run", "fit", "ExponentTransformer(power=0.5) * NaiveForecaster(sp=12)", "--data", "source.csv", "--model-out", "production.zip", "--json"]
+      ],
+      "prompt": "Audit and reproduce the provided `production.zip` without Python. Inspect it as JSON and obtain its reusable spec with `model inspect --spec` while still passing `--json`. Fit that recovered spec on `source.csv` as `reproduced.zip`. From the same recovered spec, create `variant.zip` by changing only the nested NaiveForecaster seasonal period to 4 through `--set`; do not rewrite the original spec literal. Inspect both new artifacts. Predict horizon 1:6 from production, reproduced, and variant models as JSON without output files. Report class, components, nested parameter evidence, cutoffs, whether production and reproduced predictions match exactly, and how the variant differs. Also note any output-contract anomaly observed from `model inspect --spec --json`."
+    },
+    {
+      "id": "H05",
+      "title": "Compound production incident recovery",
+      "category": "multi-failure-recovery",
+      "max_cli_calls": 9,
+      "setup": [
+        ["sktime-cli", "datasets", "load", "airline", "--output", "airline.csv", "--json"],
+        ["sktime-cli", "data", "split", "airline.csv", "--test-size", "12", "--train-out", "airline_train.csv", "--test-out", "airline_test.csv", "--json"],
+        ["sktime-cli", "run", "fit", "NaiveForecaster(sp=12)", "--data", "airline_train.csv", "--model-out", "stale.zip", "--json"]
+      ],
+      "prompt": "Recover a production request with several constraints. `stale.zip` was fitted before the 12 observations in `airline_test.csv`; `airline.csv` contains all available history. The stakeholder asks you to update the saved model, replace it with AutoARIMA if possible, forecast the dated period 1961-01 through 1961-12 with 80% and 95% intervals, and export reconstructing Python code. Network/package installation and non-CLI tools are forbidden. Inspect the stale artifact, attempt AutoARIMA and preserve any dependency evidence, then complete the maximum honest supported workflow: produce a current fitted fallback at `current.zip` and point forecasts at `production_point_forecast.csv`, inspecting both. Report old/new cutoffs, exact successful artifacts, relative-to-calendar horizon mapping, and separately classify every unmet request (update, AutoARIMA dependency, dated fh, intervals, code export) without fabricating support."
+    },
+    {
+      "id": "H06",
+      "title": "Hierarchical forecast and serialization audit",
+      "category": "hierarchical-forecasting",
+      "max_cli_calls": 9,
+      "setup": [],
+      "prompt": "Audit and forecast the built-in `hierarchical_sales` data. Describe and load it to `hierarchical_sales.csv`, inspect that CSV, and explain what representation the file inspection sees. Preserve the true hierarchy by fitting `NaiveForecaster(strategy='last')` directly from the named dataset as `hierarchical.zip` with horizon 1:3. Inspect the model. Predict once to JSON so the complete hierarchical index and values are visible, then again to `hierarchical_forecast.csv`; inspect the CSV artifact. Report model cutoff, number of bottom series, forecast rows, hierarchy keys, dates and values, and whether the CSV round-trip remains recognized as hierarchical by `data inspect`. Do not claim aggregate-level reconciliation because none was requested or verified."
+    }
+  ]
+}

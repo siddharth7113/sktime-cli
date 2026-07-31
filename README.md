@@ -46,6 +46,16 @@ sktime-cli run evaluate "NaiveForecaster(sp=12)" --data airline.csv --fh 1:12 \
   agent-facing contract and task-oriented workflows (drop the `skills/` folder
   into your agent's skill directory, e.g. `.claude/skills/`).
 
+## Agent benchmark
+
+The versioned [adversarial benchmark](benchmarks/README.md) supplies a
+foundation tier and a [hard end-to-end tier](benchmarks/hard/README.md), plus a
+provider-neutral run-record schema, detailed scoring keys, and a scorer for
+comparing how different AI models use this skill and which CLI gaps they
+identify. Benchmark agents are restricted to `sktime-cli`; every command,
+stdout/stderr stream, exit code, final answer, model setting, and skill version
+is retained for audit.
+
 ## Status
 
 v0.0.1 — early alpha. See [PLAN.md](PLAN.md) for the roadmap and checklist.

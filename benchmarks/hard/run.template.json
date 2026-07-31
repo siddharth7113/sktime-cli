@@ -1,0 +1,35 @@
+{
+  "run_id": "YYYYMMDD-provider-model-hard",
+  "suite_id": "sktime-cli-adversarial-hard",
+  "suite_version": "1.0.0",
+  "model": {
+    "provider": "replace-me",
+    "name": "replace-me",
+    "version": "replace-me",
+    "settings": {
+      "temperature": 0,
+      "seed": null
+    }
+  },
+  "environment": {
+    "sktime_cli": "0.0.1",
+    "sktime": "1.1.0",
+    "python": "replace-me",
+    "platform": "replace-me",
+    "network": "disabled",
+    "soft_dependencies": {
+      "pmdarima": "absent",
+      "pytest": "present"
+    }
+  },
+  "skill": {
+    "path": "skills/sktime-cli/SKILL.md",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "injected": true
+  },
+  "complete_tool_trace": false,
+  "started_at": "",
+  "finished_at": "",
+  "tasks": [],
+  "reported_gaps": []
+}
