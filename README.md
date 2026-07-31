@@ -2,7 +2,7 @@
 
 # sktime-cli
 
-**The command line for [sktime](https://github.com/sktime/sktime) — built for AI agents and humans.**
+**The command line for [sktime](https://github.com/sktime/sktime) : built for AI agents and humans.**
 
 Discover estimators, fetch datasets, inspect time series files, and run
 fit / predict / evaluate workflows straight from your shell.
@@ -21,18 +21,18 @@ fit / predict / evaluate workflows straight from your shell.
 
 ## Highlights
 
-- **Stateless, one-shot commands** — every invocation is a single process:
+- **Stateless, one-shot commands** - every invocation is a single process:
   read files, call sktime, write results, exit with a meaningful code.
   State lives on disk only, Hugging Face CLI style.
-- **Registry-native discovery** — `registry search` filters sktime's full
+- **Registry-native discovery** - `registry search` filters sktime's full
   estimator registry by scitype and capability tags, served from a disk cache
   so warm searches are instant.
-- **Estimator spec strings** — models are named the way you'd write them in
+- **Estimator spec strings** -models are named the way you'd write them in
   Python: `"NaiveForecaster(sp=12)"`, with pipelines via `*`, ensembles via
   `+`, and multiplexers via `|`.
-- **Any format in, any format out** — csv, parquet, json, `.ts`, `.tsf`,
+- **Any format in, any format out** - csv, parquet, json, `.ts`, `.tsf`,
   `.arff`; every command speaks `--format human|agent|json|quiet`.
-- **Agent-first contract** — one JSON document on stdout, structured errors
+- **Agent-first contract** - one JSON document on stdout, structured errors
   on stderr, stable exit codes, and a ready-to-drop-in
   [agent skill](skills/sktime-cli/SKILL.md).
 
