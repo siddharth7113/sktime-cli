@@ -1,0 +1,260 @@
+<svg class="rich-terminal" viewBox="0 0 1238 757.5999999999999" xmlns="http://www.w3.org/2000/svg">
+    <!-- Generated with Rich https://www.textualize.io -->
+    <style>
+
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Regular"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Regular.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Regular.woff") format("woff");
+        font-style: normal;
+        font-weight: 400;
+    }
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Bold"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Bold.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Bold.woff") format("woff");
+        font-style: bold;
+        font-weight: 700;
+    }
+
+    .terminal-1216586918-matrix {
+        font-family: Fira Code, monospace;
+        font-size: 20px;
+        line-height: 24.4px;
+        font-variant-east-asian: full-width;
+    }
+
+    .terminal-1216586918-title {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: arial;
+    }
+
+    .terminal-1216586918-r1 { fill: #98e024;font-weight: bold }
+.terminal-1216586918-r2 { fill: #d9d9d9 }
+.terminal-1216586918-r3 { fill: #d9d9d9;font-weight: bold }
+.terminal-1216586918-r4 { fill: #fd971f;font-weight: bold }
+.terminal-1216586918-r5 { fill: #f4005f;font-weight: bold }
+.terminal-1216586918-r6 { fill: #58d1eb;font-weight: bold }
+.terminal-1216586918-r7 { fill: #398291;font-weight: bold }
+.terminal-1216586918-r8 { fill: #878787 }
+.terminal-1216586918-r9 { fill: #97043d;font-weight: bold }
+.terminal-1216586918-r10 { fill: #878787;font-weight: bold }
+.terminal-1216586918-r11 { fill: #58d1eb }
+    </style>
+
+    <defs>
+    <clipPath id="terminal-1216586918-clip-terminal">
+      <rect x="0" y="0" width="1219.0" height="706.5999999999999" />
+    </clipPath>
+    <clipPath id="terminal-1216586918-line-0">
+    <rect x="0" y="1.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-1">
+    <rect x="0" y="25.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-2">
+    <rect x="0" y="50.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-3">
+    <rect x="0" y="74.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-4">
+    <rect x="0" y="99.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-5">
+    <rect x="0" y="123.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-6">
+    <rect x="0" y="147.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-7">
+    <rect x="0" y="172.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-8">
+    <rect x="0" y="196.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-9">
+    <rect x="0" y="221.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-10">
+    <rect x="0" y="245.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-11">
+    <rect x="0" y="269.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-12">
+    <rect x="0" y="294.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-13">
+    <rect x="0" y="318.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-14">
+    <rect x="0" y="343.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-15">
+    <rect x="0" y="367.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-16">
+    <rect x="0" y="391.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-17">
+    <rect x="0" y="416.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-18">
+    <rect x="0" y="440.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-19">
+    <rect x="0" y="465.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-20">
+    <rect x="0" y="489.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-21">
+    <rect x="0" y="513.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-22">
+    <rect x="0" y="538.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-23">
+    <rect x="0" y="562.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-24">
+    <rect x="0" y="587.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-25">
+    <rect x="0" y="611.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-26">
+    <rect x="0" y="635.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="terminal-1216586918-line-27">
+    <rect x="0" y="660.3" width="1220" height="24.65"/>
+            </clipPath>
+    </defs>
+
+    <rect fill="#0c0c0c" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1236" height="755.6" rx="8"/><text class="terminal-1216586918-title" fill="#d9d9d9" text-anchor="middle" x="618" y="27">sktime-cli&#160;—&#160;discover,&#160;fit,&#160;predict</text>
+            <g transform="translate(26,22)">
+            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
+            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
+            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            </g>
+
+    <g transform="translate(9, 41)" clip-path="url(#terminal-1216586918-clip-terminal)">
+
+    <style>
+.ac0 { clip-path: inset(-30% 102% -30% -1%); animation: kac0 20.899999999999995s linear infinite; }
+@keyframes kac0 {
+  0% { clip-path: inset(-30% 102% -30% -1%); }
+  2.8708% { clip-path: inset(-30% 102% -30% -1%); animation-timing-function: steps(83, end); }
+  18.756% { clip-path: inset(-30% -1% -30% -1%); }
+  100% { clip-path: inset(-30% -1% -30% -1%); }
+}
+.ao1 { animation: kao1 20.899999999999995s step-end infinite; }
+@keyframes kao1 { 0% { opacity: 0; } 20.6699% { opacity: 1; } 100% { opacity: 1; } }
+.ao2 { animation: kao2 20.899999999999995s step-end infinite; }
+@keyframes kao2 { 0% { opacity: 0; } 21.0526% { opacity: 1; } 100% { opacity: 1; } }
+.ao3 { animation: kao3 20.899999999999995s step-end infinite; }
+@keyframes kao3 { 0% { opacity: 0; } 21.4354% { opacity: 1; } 100% { opacity: 1; } }
+.ao4 { animation: kao4 20.899999999999995s step-end infinite; }
+@keyframes kao4 { 0% { opacity: 0; } 21.8182% { opacity: 1; } 100% { opacity: 1; } }
+.ao5 { animation: kao5 20.899999999999995s step-end infinite; }
+@keyframes kao5 { 0% { opacity: 0; } 22.201% { opacity: 1; } 100% { opacity: 1; } }
+.ao6 { animation: kao6 20.899999999999995s step-end infinite; }
+@keyframes kao6 { 0% { opacity: 0; } 22.5837% { opacity: 1; } 100% { opacity: 1; } }
+.ao7 { animation: kao7 20.899999999999995s step-end infinite; }
+@keyframes kao7 { 0% { opacity: 0; } 22.9665% { opacity: 1; } 100% { opacity: 1; } }
+.ao8 { animation: kao8 20.899999999999995s step-end infinite; }
+@keyframes kao8 { 0% { opacity: 0; } 23.3493% { opacity: 1; } 100% { opacity: 1; } }
+.ac9 { clip-path: inset(-30% 102% -30% -1%); animation: kac9 20.899999999999995s linear infinite; }
+@keyframes kac9 {
+  0% { clip-path: inset(-30% 102% -30% -1%); }
+  28.0383% { clip-path: inset(-30% 102% -30% -1%); animation-timing-function: steps(55, end); }
+  38.5646% { clip-path: inset(-30% -1% -30% -1%); }
+  100% { clip-path: inset(-30% -1% -30% -1%); }
+}
+.ao10 { animation: kao10 20.899999999999995s step-end infinite; }
+@keyframes kao10 { 0% { opacity: 0; } 40.4785% { opacity: 1; } 100% { opacity: 1; } }
+.ao11 { animation: kao11 20.899999999999995s step-end infinite; }
+@keyframes kao11 { 0% { opacity: 0; } 40.8612% { opacity: 1; } 100% { opacity: 1; } }
+.ao12 { animation: kao12 20.899999999999995s step-end infinite; }
+@keyframes kao12 { 0% { opacity: 0; } 41.244% { opacity: 1; } 100% { opacity: 1; } }
+.ao13 { animation: kao13 20.899999999999995s step-end infinite; }
+@keyframes kao13 { 0% { opacity: 0; } 41.6268% { opacity: 1; } 100% { opacity: 1; } }
+.ao14 { animation: kao14 20.899999999999995s step-end infinite; }
+@keyframes kao14 { 0% { opacity: 0; } 42.0096% { opacity: 1; } 100% { opacity: 1; } }
+.ao15 { animation: kao15 20.899999999999995s step-end infinite; }
+@keyframes kao15 { 0% { opacity: 0; } 42.3923% { opacity: 1; } 100% { opacity: 1; } }
+.ac16 { clip-path: inset(-30% 102% -30% -1%); animation: kac16 20.899999999999995s linear infinite; }
+@keyframes kac16 {
+  0% { clip-path: inset(-30% 102% -30% -1%); }
+  47.0813% { clip-path: inset(-30% 102% -30% -1%); animation-timing-function: steps(86, end); }
+  63.5407% { clip-path: inset(-30% -1% -30% -1%); }
+  100% { clip-path: inset(-30% -1% -30% -1%); }
+}
+.ao17 { animation: kao17 20.899999999999995s step-end infinite; }
+@keyframes kao17 { 0% { opacity: 0; } 65.4545% { opacity: 1; } 100% { opacity: 1; } }
+.ao18 { animation: kao18 20.899999999999995s step-end infinite; }
+@keyframes kao18 { 0% { opacity: 0; } 65.8373% { opacity: 1; } 100% { opacity: 1; } }
+.ao19 { animation: kao19 20.899999999999995s step-end infinite; }
+@keyframes kao19 { 0% { opacity: 0; } 66.2201% { opacity: 1; } 100% { opacity: 1; } }
+.ao20 { animation: kao20 20.899999999999995s step-end infinite; }
+@keyframes kao20 { 0% { opacity: 0; } 66.6029% { opacity: 1; } 100% { opacity: 1; } }
+.ao21 { animation: kao21 20.899999999999995s step-end infinite; }
+@keyframes kao21 { 0% { opacity: 0; } 66.9856% { opacity: 1; } 100% { opacity: 1; } }
+.ao22 { animation: kao22 20.899999999999995s step-end infinite; }
+@keyframes kao22 { 0% { opacity: 0; } 67.3684% { opacity: 1; } 100% { opacity: 1; } }
+.ac23 { clip-path: inset(-30% 102% -30% -1%); animation: kac23 20.899999999999995s linear infinite; }
+@keyframes kac23 {
+  0% { clip-path: inset(-30% 102% -30% -1%); }
+  72.0574% { clip-path: inset(-30% 102% -30% -1%); animation-timing-function: steps(51, end); }
+  81.8182% { clip-path: inset(-30% -1% -30% -1%); }
+  100% { clip-path: inset(-30% -1% -30% -1%); }
+}
+.ao24 { animation: kao24 20.899999999999995s step-end infinite; }
+@keyframes kao24 { 0% { opacity: 0; } 83.7321% { opacity: 1; } 100% { opacity: 1; } }
+.ao25 { animation: kao25 20.899999999999995s step-end infinite; }
+@keyframes kao25 { 0% { opacity: 0; } 84.1148% { opacity: 1; } 100% { opacity: 1; } }
+.ao26 { animation: kao26 20.899999999999995s step-end infinite; }
+@keyframes kao26 { 0% { opacity: 0; } 84.4976% { opacity: 1; } 100% { opacity: 1; } }
+.ao27 { animation: kao27 20.899999999999995s step-end infinite; }
+@keyframes kao27 { 0% { opacity: 0; } 84.8804% { opacity: 1; } 100% { opacity: 1; } }
+.ao28 { animation: kao28 20.899999999999995s step-end infinite; }
+@keyframes kao28 { 0% { opacity: 0; } 85.2632% { opacity: 1; } 100% { opacity: 1; } }
+</style>
+<g class="terminal-1216586918-matrix">
+    <g class="ac0"><text class="terminal-1216586918-r1" x="0" y="20" textLength="12.2" clip-path="url(#terminal-1216586918-line-0)">❯</text><text class="terminal-1216586918-r3" x="24.4" y="20" textLength="634.4" clip-path="url(#terminal-1216586918-line-0)">sktime-cli&#160;registry&#160;search&#160;forecaster&#160;-t&#160;capability:</text><text class="terminal-1216586918-r4" x="658.8" y="20" textLength="170.8" clip-path="url(#terminal-1216586918-line-0)">missing_values</text><text class="terminal-1216586918-r3" x="829.6" y="20" textLength="12.2" clip-path="url(#terminal-1216586918-line-0)">=</text><text class="terminal-1216586918-r5" x="841.8" y="20" textLength="48.8" clip-path="url(#terminal-1216586918-line-0)">true</text><text class="terminal-1216586918-r3" x="890.6" y="20" textLength="109.8" clip-path="url(#terminal-1216586918-line-0)">&#160;--limit&#160;</text><text class="terminal-1216586918-r6" x="1000.4" y="20" textLength="12.2" clip-path="url(#terminal-1216586918-line-0)">5</text><text class="terminal-1216586918-r2" x="1220" y="20" textLength="12.2" clip-path="url(#terminal-1216586918-line-0)">
+</text></g><text class="ao1 terminal-1216586918-r3" x="12.2" y="44.4" textLength="402.6" clip-path="url(#terminal-1216586918-line-1)">name&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao1 terminal-1216586918-r3" x="439.2" y="44.4" textLength="170.8" clip-path="url(#terminal-1216586918-line-1)">scitypes&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao1 terminal-1216586918-r3" x="634.4" y="44.4" textLength="414.8" clip-path="url(#terminal-1216586918-line-1)">module&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao1 terminal-1216586918-r3" x="1073.6" y="44.4" textLength="134.2" clip-path="url(#terminal-1216586918-line-1)">installable</text><text class="ao1 terminal-1216586918-r2" x="1220" y="44.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-1)">
+</text><text class="ao2 terminal-1216586918-r2" x="0" y="68.8" textLength="1220" clip-path="url(#terminal-1216586918-line-2)">&#160;ARIMA&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;[&quot;forecaster&quot;]&#160;&#160;sktime.forecasting.arima._pmdarima&#160;&#160;false&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao2 terminal-1216586918-r2" x="1220" y="68.8" textLength="12.2" clip-path="url(#terminal-1216586918-line-2)">
+</text><text class="ao3 terminal-1216586918-r2" x="0" y="93.2" textLength="1220" clip-path="url(#terminal-1216586918-line-3)">&#160;AutoARIMA&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;[&quot;forecaster&quot;]&#160;&#160;sktime.forecasting.arima._pmdarima&#160;&#160;false&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao3 terminal-1216586918-r2" x="1220" y="93.2" textLength="12.2" clip-path="url(#terminal-1216586918-line-3)">
+</text><text class="ao4 terminal-1216586918-r2" x="0" y="117.6" textLength="1220" clip-path="url(#terminal-1216586918-line-4)">&#160;AutoETS&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;[&quot;forecaster&quot;]&#160;&#160;sktime.forecasting.ets&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;false&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao4 terminal-1216586918-r2" x="1220" y="117.6" textLength="12.2" clip-path="url(#terminal-1216586918-line-4)">
+</text><text class="ao5 terminal-1216586918-r2" x="0" y="142" textLength="1220" clip-path="url(#terminal-1216586918-line-5)">&#160;BaggingForecaster&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;[&quot;forecaster&quot;]&#160;&#160;sktime.forecasting.compose._baggi…&#160;&#160;true&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao5 terminal-1216586918-r2" x="1220" y="142" textLength="12.2" clip-path="url(#terminal-1216586918-line-5)">
+</text><text class="ao6 terminal-1216586918-r2" x="0" y="166.4" textLength="1220" clip-path="url(#terminal-1216586918-line-6)">&#160;DirRecTabularRegressionForecaster&#160;&#160;[&quot;forecaster&quot;]&#160;&#160;sktime.forecasting.compose._reduce&#160;&#160;true&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao6 terminal-1216586918-r2" x="1220" y="166.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-6)">
+</text><text class="ao7 terminal-1216586918-r7" x="0" y="190.8" textLength="12.2" clip-path="url(#terminal-1216586918-line-7)">5</text><text class="ao7 terminal-1216586918-r9" x="24.4" y="190.8" textLength="73.2" clip-path="url(#terminal-1216586918-line-7)">result</text><text class="ao7 terminal-1216586918-r10" x="97.6" y="190.8" textLength="12.2" clip-path="url(#terminal-1216586918-line-7)">(</text><text class="ao7 terminal-1216586918-r8" x="109.8" y="190.8" textLength="12.2" clip-path="url(#terminal-1216586918-line-7)">s</text><text class="ao7 terminal-1216586918-r10" x="122" y="190.8" textLength="12.2" clip-path="url(#terminal-1216586918-line-7)">)</text><text class="ao7 terminal-1216586918-r2" x="1220" y="190.8" textLength="12.2" clip-path="url(#terminal-1216586918-line-7)">
+</text><text class="ao8 terminal-1216586918-r2" x="1220" y="215.2" textLength="12.2" clip-path="url(#terminal-1216586918-line-8)">
+</text><g class="ac9"><text class="terminal-1216586918-r1" x="0" y="239.6" textLength="12.2" clip-path="url(#terminal-1216586918-line-9)">❯</text><text class="terminal-1216586918-r3" x="24.4" y="239.6" textLength="646.6" clip-path="url(#terminal-1216586918-line-9)">sktime-cli&#160;datasets&#160;load&#160;airline&#160;--output&#160;airline.csv</text><text class="terminal-1216586918-r2" x="1220" y="239.6" textLength="12.2" clip-path="url(#terminal-1216586918-line-9)">
+</text></g><text class="ao10 terminal-1216586918-r6" x="0" y="264" textLength="85.4" clip-path="url(#terminal-1216586918-line-10)">dataset</text><text class="ao10 terminal-1216586918-r2" x="97.6" y="264" textLength="195.2" clip-path="url(#terminal-1216586918-line-10)">&#160;airline&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao10 terminal-1216586918-r2" x="1220" y="264" textLength="12.2" clip-path="url(#terminal-1216586918-line-10)">
+</text><text class="ao11 terminal-1216586918-r6" x="0" y="288.4" textLength="85.4" clip-path="url(#terminal-1216586918-line-11)">source&#160;</text><text class="ao11 terminal-1216586918-r2" x="97.6" y="288.4" textLength="195.2" clip-path="url(#terminal-1216586918-line-11)">&#160;builtin&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao11 terminal-1216586918-r2" x="1220" y="288.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-11)">
+</text><text class="ao12 terminal-1216586918-r6" x="0" y="312.8" textLength="85.4" clip-path="url(#terminal-1216586918-line-12)">task&#160;&#160;&#160;</text><text class="ao12 terminal-1216586918-r2" x="97.6" y="312.8" textLength="195.2" clip-path="url(#terminal-1216586918-line-12)">&#160;forecasting&#160;&#160;&#160;&#160;</text><text class="ao12 terminal-1216586918-r2" x="1220" y="312.8" textLength="12.2" clip-path="url(#terminal-1216586918-line-12)">
+</text><text class="ao13 terminal-1216586918-r6" x="0" y="337.2" textLength="85.4" clip-path="url(#terminal-1216586918-line-13)">shape&#160;&#160;</text><text class="ao13 terminal-1216586918-r2" x="97.6" y="337.2" textLength="195.2" clip-path="url(#terminal-1216586918-line-13)">&#160;[144]&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao13 terminal-1216586918-r2" x="1220" y="337.2" textLength="12.2" clip-path="url(#terminal-1216586918-line-13)">
+</text><text class="ao14 terminal-1216586918-r6" x="0" y="361.6" textLength="85.4" clip-path="url(#terminal-1216586918-line-14)">files&#160;&#160;</text><text class="ao14 terminal-1216586918-r2" x="97.6" y="361.6" textLength="195.2" clip-path="url(#terminal-1216586918-line-14)">&#160;[&quot;airline.csv&quot;]</text><text class="ao14 terminal-1216586918-r2" x="1220" y="361.6" textLength="12.2" clip-path="url(#terminal-1216586918-line-14)">
+</text><text class="ao15 terminal-1216586918-r2" x="1220" y="386" textLength="12.2" clip-path="url(#terminal-1216586918-line-15)">
+</text><g class="ac16"><text class="terminal-1216586918-r1" x="0" y="410.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-16)">❯</text><text class="terminal-1216586918-r3" x="24.4" y="410.4" textLength="231.8" clip-path="url(#terminal-1216586918-line-16)">sktime-cli&#160;run&#160;fit&#160;</text><text class="terminal-1216586918-r1" x="256.2" y="410.4" textLength="195.2" clip-path="url(#terminal-1216586918-line-16)">&quot;NaiveForecaster</text><text class="terminal-1216586918-r1" x="451.4" y="410.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-16)">(</text><text class="terminal-1216586918-r1" x="463.6" y="410.4" textLength="24.4" clip-path="url(#terminal-1216586918-line-16)">sp</text><text class="terminal-1216586918-r1" x="488" y="410.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-16)">=</text><text class="terminal-1216586918-r1" x="500.2" y="410.4" textLength="24.4" clip-path="url(#terminal-1216586918-line-16)">12</text><text class="terminal-1216586918-r1" x="524.6" y="410.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-16)">)</text><text class="terminal-1216586918-r1" x="536.8" y="410.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-16)">&quot;</text><text class="terminal-1216586918-r3" x="549" y="410.4" textLength="500.2" clip-path="url(#terminal-1216586918-line-16)">&#160;--data&#160;airline.csv&#160;--model-out&#160;model.zip</text><text class="terminal-1216586918-r2" x="1220" y="410.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-16)">
+</text></g><text class="ao17 terminal-1216586918-r6" x="0" y="434.8" textLength="109.8" clip-path="url(#terminal-1216586918-line-17)">model&#160;&#160;&#160;&#160;</text><text class="ao17 terminal-1216586918-r2" x="122" y="434.8" textLength="280.6" clip-path="url(#terminal-1216586918-line-17)">&#160;model.zip&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao17 terminal-1216586918-r2" x="1220" y="434.8" textLength="12.2" clip-path="url(#terminal-1216586918-line-17)">
+</text><text class="ao18 terminal-1216586918-r6" x="0" y="459.2" textLength="109.8" clip-path="url(#terminal-1216586918-line-18)">estimator</text><text class="ao18 terminal-1216586918-r2" x="122" y="459.2" textLength="280.6" clip-path="url(#terminal-1216586918-line-18)">&#160;NaiveForecaster(sp=12)</text><text class="ao18 terminal-1216586918-r2" x="1220" y="459.2" textLength="12.2" clip-path="url(#terminal-1216586918-line-18)">
+</text><text class="ao19 terminal-1216586918-r6" x="0" y="483.6" textLength="109.8" clip-path="url(#terminal-1216586918-line-19)">scitype&#160;&#160;</text><text class="ao19 terminal-1216586918-r2" x="122" y="483.6" textLength="280.6" clip-path="url(#terminal-1216586918-line-19)">&#160;forecaster&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao19 terminal-1216586918-r2" x="1220" y="483.6" textLength="12.2" clip-path="url(#terminal-1216586918-line-19)">
+</text><text class="ao20 terminal-1216586918-r6" x="0" y="508" textLength="109.8" clip-path="url(#terminal-1216586918-line-20)">n_obs&#160;&#160;&#160;&#160;</text><text class="ao20 terminal-1216586918-r2" x="122" y="508" textLength="280.6" clip-path="url(#terminal-1216586918-line-20)">&#160;144&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao20 terminal-1216586918-r2" x="1220" y="508" textLength="12.2" clip-path="url(#terminal-1216586918-line-20)">
+</text><text class="ao21 terminal-1216586918-r6" x="0" y="532.4" textLength="109.8" clip-path="url(#terminal-1216586918-line-21)">cutoff&#160;&#160;&#160;</text><text class="ao21 terminal-1216586918-r2" x="122" y="532.4" textLength="280.6" clip-path="url(#terminal-1216586918-line-21)">&#160;1960-12&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="ao21 terminal-1216586918-r2" x="1220" y="532.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-21)">
+</text><text class="ao22 terminal-1216586918-r2" x="1220" y="556.8" textLength="12.2" clip-path="url(#terminal-1216586918-line-22)">
+</text><g class="ac23"><text class="terminal-1216586918-r1" x="0" y="581.2" textLength="12.2" clip-path="url(#terminal-1216586918-line-23)">❯</text><text class="terminal-1216586918-r3" x="24.4" y="581.2" textLength="561.2" clip-path="url(#terminal-1216586918-line-23)">sktime-cli&#160;run&#160;predict&#160;--model&#160;model.zip&#160;--fh&#160;</text><text class="terminal-1216586918-r1" x="585.6" y="581.2" textLength="36.6" clip-path="url(#terminal-1216586918-line-23)">1:3</text><text class="terminal-1216586918-r2" x="1220" y="581.2" textLength="12.2" clip-path="url(#terminal-1216586918-line-23)">
+</text></g><text class="ao24 terminal-1216586918-r3" x="12.2" y="605.6" textLength="85.4" clip-path="url(#terminal-1216586918-line-24)">index&#160;&#160;</text><text class="ao24 terminal-1216586918-r3" x="122" y="605.6" textLength="341.6" clip-path="url(#terminal-1216586918-line-24)">Number&#160;of&#160;airline&#160;passengers</text><text class="ao24 terminal-1216586918-r2" x="1220" y="605.6" textLength="12.2" clip-path="url(#terminal-1216586918-line-24)">
+</text><text class="ao25 terminal-1216586918-r11" x="12.2" y="630" textLength="85.4" clip-path="url(#terminal-1216586918-line-25)">1961-01</text><text class="ao25 terminal-1216586918-r2" x="109.8" y="630" textLength="366" clip-path="url(#terminal-1216586918-line-25)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;417.0&#160;</text><text class="ao25 terminal-1216586918-r2" x="1220" y="630" textLength="12.2" clip-path="url(#terminal-1216586918-line-25)">
+</text><text class="ao26 terminal-1216586918-r11" x="12.2" y="654.4" textLength="85.4" clip-path="url(#terminal-1216586918-line-26)">1961-02</text><text class="ao26 terminal-1216586918-r2" x="109.8" y="654.4" textLength="366" clip-path="url(#terminal-1216586918-line-26)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;391.0&#160;</text><text class="ao26 terminal-1216586918-r2" x="1220" y="654.4" textLength="12.2" clip-path="url(#terminal-1216586918-line-26)">
+</text><text class="ao27 terminal-1216586918-r11" x="12.2" y="678.8" textLength="85.4" clip-path="url(#terminal-1216586918-line-27)">1961-03</text><text class="ao27 terminal-1216586918-r2" x="109.8" y="678.8" textLength="366" clip-path="url(#terminal-1216586918-line-27)">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;419.0&#160;</text><text class="ao27 terminal-1216586918-r2" x="1220" y="678.8" textLength="12.2" clip-path="url(#terminal-1216586918-line-27)">
+</text><text class="ao28 terminal-1216586918-r2" x="1220" y="703.2" textLength="12.2" clip-path="url(#terminal-1216586918-line-28)">
+</text>
+    </g>
+    </g>
+</svg>

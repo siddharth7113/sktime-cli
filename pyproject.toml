@@ -73,6 +73,7 @@ ignore = ["E203", "E731", "C408", "S301"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D", "S"]
+"docs/**" = ["S"]
 "src/sktime_cli/_specs.py" = ["S307"]
 
 [tool.ruff.lint.pydocstyle]
