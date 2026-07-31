@@ -21,3 +21,6 @@ build/
 # editors
 .idea/
 .vscode/
+
+# personal Claude Code settings
+.claude/settings.local.json

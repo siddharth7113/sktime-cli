@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(uv run *)",
-      "Bash(uv build *)",
-      "Bash(python3 -c ' *)"
-    ]
-  }
-}
