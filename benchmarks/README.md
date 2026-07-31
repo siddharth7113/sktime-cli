@@ -18,6 +18,163 @@ setting, and skill version.
 Use the hard tier for serious model ranking. Use the foundation tier as a smoke
 test or diagnostic breakdown; do not compare scores across tiers.
 
+## How to run the hard benchmark
+
+The benchmark is deliberately independent of OpenAI, Anthropic, Google, or any
+other model API. Your model adapter is responsible for starting a conversation,
+exposing a restricted command tool, and exporting the complete trace into the
+shared run format. The benchmark supplies the fixed inputs, setup commands,
+scoring key, and validator.
+
+### 1. Prepare the reference environment
+
+From the repository root:
+
+```bash
+uv sync --frozen
+export PATH="$PWD/.venv/bin:$PATH"
+sktime-cli version --json
+sktime-cli env --json
+sktime-cli registry describe AutoARIMA --no-doc --json
+```
+
+For the hard suite, use the default locked development environment: `pytest`
+must be present so H02 can resolve `LinearRegression()` inside an estimator
+spec, while `pmdarima` must remain absent for the controlled dependency failure.
+Disable network access for the model process. Do not install anything after a
+run starts.
+
+Optionally warm the registry once before timing any models:
+
+```bash
+sktime-cli registry types --json
+```
+
+Preflight and cache-warming calls are harness operations. Do not include them
+in a model's task trace.
+
+### 2. Create the run record and workspaces
+
+Choose an exact provider/model version and create one run file plus an isolated
+directory per task:
+
+```bash
+mkdir -p runs/workspaces/acme-model
+cp benchmarks/hard/run.template.json runs/acme-model-hard.json
+mkdir -p runs/workspaces/acme-model/H01
+mkdir -p runs/workspaces/acme-model/H02
+mkdir -p runs/workspaces/acme-model/H03
+mkdir -p runs/workspaces/acme-model/H04
+mkdir -p runs/workspaces/acme-model/H05
+mkdir -p runs/workspaces/acme-model/H06
+sha256sum skills/sktime-cli/SKILL.md
+```
+
+Fill the run template's model version/settings, Python/platform, timestamps,
+and real skill checksum. Leave `complete_tool_trace` false until all provider
+logs have been audited. Never reuse a task conversation or workspace.
+
+### 3. Prepare one task
+
+The canonical hard tasks are in [`hard/prompts.json`](hard/prompts.json). For a
+task such as H04, inspect its call budget, prompt, and harness-only setup:
+
+```bash
+jq '.tasks[] | select(.id == "H04") | {max_cli_calls, prompt, setup}' \
+  benchmarks/hard/prompts.json
+jq -r '.tasks[] | select(.id == "H04") | .setup[] | @sh' \
+  benchmarks/hard/prompts.json
+```
+
+Run the printed setup commands with the real `sktime-cli` from inside that
+task's workspace before launching the model. The repository owns these fixed
+commands, but review them before execution. Setup output is fixture provenance,
+not model output, so retain it separately and exclude it from `tool_calls`.
+
+H01, H02, H03, and H06 have no setup because data acquisition is part of what
+the model is being tested on. H04 and H05 have controlled starting artifacts.
+
+### 4. Construct the model conversation
+
+Start a fresh conversation containing exactly these inputs in order:
+
+1. system message: [`SYSTEM_PROMPT.md`](SYSTEM_PROMPT.md);
+2. system/developer context: the complete
+   [`skills/sktime-cli/SKILL.md`](../skills/sktime-cli/SKILL.md);
+3. user message:
+
+   ```text
+   Maximum CLI calls: <max_cli_calls>
+
+   <prompt>
+   ```
+
+Do not supply `scoring.json`, anything under `tasks/`, another model's output,
+or prior task messages. The model's shell/tool policy must accept only argv
+whose first element is exactly `sktime-cli`. Reject and record Python, `uv`,
+shell utilities, network tools, filesystem readers, and all other tools.
+
+Every model command must include `--json`. The benchmark harness and reviewer
+may use normal shell/Python utilities; the `sktime-cli`-only restriction applies
+to the model under test.
+
+### 5. Capture a complete provider trace
+
+For every visible model message and tool call, retain:
+
+- ordered argv, stdout, stderr, exit code, and duration;
+- rejected or non-CLI tool attempts as `kind: "other"`;
+- visible assistant messages and final answer;
+- input/output token counts when the provider exposes them;
+- task timestamps and any infrastructure failure.
+
+Convert the provider output into the task structure defined by
+[`run.schema.json`](run.schema.json). Do not omit unsuccessful calls: H03 and
+H05 require failures as evidence. A command record looks like:
+
+```json
+{
+  "kind": "command",
+  "argv": ["sktime-cli", "model", "inspect", "production.zip", "--json"],
+  "stdout": "{...}\n",
+  "stderr": "",
+  "exit_code": 0,
+  "duration_ms": 914.2
+}
+```
+
+After H01-H06 are complete, verify the trace against the provider's raw log and
+only then set `complete_tool_trace` to true.
+
+### 6. Review and score the run
+
+Keep [`hard/scoring.json`](hard/scoring.json) hidden until the run is sealed.
+For every task, add all four `judgments` to the run record. Award 0, 1, or 2
+points per criterion and cite a command number, output field, or final-answer
+statement in `notes`.
+
+Validate a partially assembled record during development:
+
+```bash
+python benchmarks/score.py runs/acme-model-hard.json --allow-partial
+```
+
+Score a completed model or compare several models from the same tier:
+
+```bash
+python benchmarks/score.py runs/acme-model-hard.json
+python benchmarks/score.py \
+  runs/model-a-hard.json runs/model-b-hard.json runs/model-c-hard.json
+python benchmarks/score.py runs/acme-model-hard.json --json \
+  > runs/acme-model-hard-score.json
+```
+
+The hard suite is scored out of 60. Prefer two blind reviewers and reconcile
+judgment differences greater than one point. The scorer automatically checks
+CLI-only discipline, `--json`, call budgets, suite/environment compatibility,
+error JSON rates, recovery behavior, tokens, and reported gaps. It refuses to
+rank foundation and hard runs together.
+
 The fixed foundation suite is [`prompts.json`](prompts.json). Keep
 [`scoring.json`](scoring.json) hidden until a model finishes a task so its
 expected facts do not leak into the answer.
