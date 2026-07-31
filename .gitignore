@@ -1,0 +1,23 @@
+# virtual environments
+.venv/
+venv/
+
+# safety net: the sktime dev checkout must never live inside this repo
+/sktime/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# tooling caches
+.ruff_cache/
+.pytest_cache/
+.coverage
+.cache/
+
+# editors
+.idea/
+.vscode/
