@@ -181,8 +181,17 @@ def _patch_rich_format_error() -> None:
 
 
 def _patch_usage_error_show() -> None:
-    """Wrap the plain Click renderer, used when rich markup is switched off."""
-    from typer._click.exceptions import UsageError
+    """Wrap the plain Click renderer, used when rich markup is switched off.
+
+    Typer only vendors Click as ``typer._click`` from 0.26, and the declared
+    floor is older, so this import has to be optional. Nothing is lost when it
+    is missing: the rich renderer above is the one Typer actually calls, and it
+    has existed for far longer.
+    """
+    try:
+        from typer._click.exceptions import UsageError
+    except ImportError:  # typer < 0.26 does not vendor click
+        return
 
     if getattr(UsageError, "_sktime_cli_patched", False):
         return

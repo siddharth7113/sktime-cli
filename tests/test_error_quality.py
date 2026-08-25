@@ -435,3 +435,154 @@ def test_unknown_estimator_suggests_close_matches(invoke):
     result = invoke("registry", "describe", "NaiveForecast", "--json")
     assert result.exit_code == 4
     assert "NaiveForecaster" in json.loads(result.stderr)["error"]["hint"]
+
+
+# --------------------------------------------------------------------------
+# findings from the code review
+
+
+def test_usage_error_patch_survives_an_old_typer(monkeypatch):
+    """typer vendors click only from 0.26; the declared floor is older."""
+    import builtins
+
+    from sktime_cli import _guard
+
+    real_import = builtins.__import__
+
+    def no_vendored_click(name, *args, **kwargs):
+        if name.startswith("typer._click"):
+            raise ImportError("No module named 'typer._click'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_vendored_click)
+    _guard._patch_usage_error_show()  # must not raise
+
+
+@pytest.mark.parametrize("fmt", ["csv", "json"])
+def test_dataset_load_honours_the_requested_format(invoke, tmp_path, fmt):
+    """The MultiIndex branch used to write CSV whatever was asked for."""
+    out = tmp_path / f"h.{fmt}"
+    result = invoke(
+        "datasets",
+        "load",
+        "hierarchical_sales_toydata",
+        "-o",
+        out,
+        "--file-format",
+        fmt,
+        "--json",
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["layout"] == "long"
+    if fmt == "json":
+        json.loads(out.read_text())  # must be JSON, not CSV in a .json file
+
+
+@pytest.mark.parametrize(
+    ("dataset", "scitype"),
+    [("airline", "Series"), ("hierarchical_sales_toydata", "Hierarchical")],
+)
+def test_json_round_trips_every_scitype(invoke, tmp_path, dataset, scitype):
+    out = tmp_path / "d.json"
+    written = invoke(
+        "datasets", "load", dataset, "-o", out, "--file-format", "json", "--json"
+    )
+    assert written.exit_code == 0, written.output
+    back = invoke("data", "inspect", out, "--json")
+    assert back.exit_code == 0, back.output
+    assert json.loads(back.stdout)["scitype"] == scitype
+
+
+def test_panel_json_round_trips(invoke, tmp_path):
+    out = tmp_path / "p.json"
+    invoke(
+        "datasets",
+        "load",
+        "arrow_head",
+        "--split",
+        "train",
+        "--file-format",
+        "json",
+        "-o",
+        out,
+        "--json",
+    )
+    back = invoke("data", "inspect", out, "--json")
+    assert back.exit_code == 0, back.output
+    assert json.loads(back.stdout)["scitype"] == "Panel"
+
+
+def test_fit_predict_reports_missing_labels_like_fit(invoke, tmp_path):
+    """fit-predict skipped the labels check and failed inside sktime instead."""
+    panel = tmp_path / "ah.csv"
+    invoke(
+        "datasets",
+        "load",
+        "arrow_head",
+        "--split",
+        "train",
+        "--file-format",
+        "csv",
+        "-o",
+        panel,
+        "--json",
+    )
+    result = invoke(
+        "run",
+        "fit-predict",
+        "DummyClassifier()",
+        "--data",
+        panel,
+        "--long",
+        "--id-col",
+        "level_0",
+        "--time-col",
+        "level_1",
+        "--json",
+    )
+    assert result.exit_code == 5
+    error = json.loads(result.stderr)["error"]
+    assert error["code"] == "data_error"
+    assert "no labels" in error["message"]
+
+
+def test_two_metrics_with_the_same_base_name_both_report(invoke, airline_csv, tmp_path):
+    """A bare name and a parameterized spec used to collapse to one score."""
+    import shutil
+
+    data = tmp_path / "airline.csv"
+    shutil.copy(airline_csv, data)
+    split = json.loads(
+        invoke("data", "split", data, "--test-size", "12", "--json").stdout
+    )
+    model = tmp_path / "m.zip"
+    invoke(
+        "run",
+        "fit",
+        "NaiveForecaster(sp=12)",
+        "--data",
+        split["train"],
+        "--model-out",
+        model,
+        "--json",
+    )
+    pred = tmp_path / "pred.csv"
+    invoke("run", "predict", "--model", model, "--fh", "1:12", "-o", pred, "--json")
+
+    result = invoke(
+        "metrics",
+        "score",
+        "--true",
+        split["test"],
+        "--pred",
+        pred,
+        "--metric",
+        "MeanAbsolutePercentageError",
+        "--metric",
+        "MeanAbsolutePercentageError(symmetric=True)",
+        "--json",
+    )
+    assert result.exit_code == 0, result.output
+    scores = json.loads(result.stdout)
+    assert len(scores) == 2
+    assert len(set(scores.values())) == 2

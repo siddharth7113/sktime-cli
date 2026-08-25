@@ -108,7 +108,12 @@ def score(
     scores: dict = {}
     for item in metrics:
         scorer = resolve_metric(item)
-        scores[_metric_key(item)] = _call_metric(scorer, y_true, y_pred, y_train, item)
+        # a bare name and a parameterized spec share a base name, so fall back
+        # to the spec as written rather than overwriting the earlier score
+        key = _metric_key(item)
+        if key in scores:
+            key = item
+        scores[key] = _call_metric(scorer, y_true, y_pred, y_train, item)
 
     emit_record(
         scores,

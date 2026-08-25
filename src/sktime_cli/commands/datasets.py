@@ -179,9 +179,8 @@ def load(
         import pandas as pd
 
         if isinstance(y.index, pd.MultiIndex):
-            frame = y.reset_index()
-            frame.to_csv(output, index=False)
-            files.append(str(output))
+            # long layout, but still in the format that was asked for
+            files += _io.write_any(y, output, ext)
             manifest["layout"] = "long"
         else:
             files += _io.write_any(y, output, ext)

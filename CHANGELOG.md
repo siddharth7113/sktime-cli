@@ -174,6 +174,19 @@ in 0.0.1, reaching about 40% of the registry; it now dispatches on 8, reaching
 - `run fit-predict` silently ignored `--fh` when given a transformer.
 - `registry describe` gave no close-match suggestion for an unknown name, while
   `datasets describe` did.
+- The usage-error handler imported `typer._click`, which typer only vendors
+  from 0.26, while the declared floor is `typer>=0.12`. On an older typer every
+  invocation, including `--version`, died at import. The import is now optional;
+  the renderer that typer actually calls has existed far longer.
+- `datasets load` ignored `--file-format` and the output suffix for datasets
+  with a MultiIndex, always writing CSV, so `-o out.json --file-format json`
+  reported success and wrote CSV into a `.json` file.
+- Panel and Hierarchical data written as JSON could not be read back: the
+  MultiIndex was serialized as nested lists and rebuilt as a flat index, and the
+  single-column case was squeezed to a Series, which is not a valid Panel mtype.
+  All three scitypes now round-trip.
+- `metrics score` keyed results by the metric's bare name, so
+  `--metric X --metric "X(param=1)"` reported only one of the two scores.
 - Documentation fixes found by running every example: the `scitype:y` tag
   filter (no forecaster carries it), the `--set forecaster__sp` key (steps are
   named after their class), the `StratifiedKFold` backtest example (sktime does

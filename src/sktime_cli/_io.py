@@ -94,16 +94,47 @@ def _read_tabular(path: Path, input_format: str | None):
     if suffix == "json":
         payload = json.loads(path.read_text())
         try:
+            index = _index_from_payload(payload["index"])
             return pd.DataFrame(
-                payload["data"], index=payload["index"], columns=payload["columns"]
+                payload["data"], index=index, columns=payload["columns"]
             )
-        except (KeyError, TypeError) as err:
+        except (KeyError, TypeError, ValueError) as err:
             raise CliError(
                 "data_error",
                 f"{path}: JSON must use pandas 'split' orient "
                 '({"index": [...], "columns": [...], "data": [[...]]})',
+                detail=str(err),
             ) from err
     raise CliError("usage", f"unsupported file format: {suffix}")
+
+
+def _index_from_payload(index):
+    """Rebuild an index from a "split" orient payload.
+
+    ``_label`` writes a ``MultiIndex`` entry as a list, so a panel round trip
+    produces a list of lists here. Passing that to ``pd.DataFrame`` raises a
+    length error, which used to surface as an internal failure.
+
+    Parameters
+    ----------
+    index : list
+        The ``index`` field of the payload.
+
+    Returns
+    -------
+    pd.Index
+        A ``MultiIndex`` when the entries are lists, a flat index otherwise.
+    """
+    import pandas as pd
+
+    if not (index and all(isinstance(entry, list) for entry in index)):
+        return index
+    multi = pd.MultiIndex.from_tuples([tuple(entry) for entry in index])
+    # JSON has no period or timestamp type, so the innermost level arrives as
+    # strings; sktime requires it to be a real time index
+    inner = _coerce_index(multi.get_level_values(-1), None)
+    levels = [multi.get_level_values(i) for i in range(multi.nlevels - 1)]
+    return pd.MultiIndex.from_arrays([*levels, inner], names=multi.names)
 
 
 def _coerce_index(index, freq: str | None):
@@ -381,13 +412,20 @@ def read_any(
         df, _meta = load_tsf_to_dataframe(str(path))
         return ReadData(df, None, "hierarchical")
 
+    import pandas as pd
+
     df = _read_tabular(path, suffix)
     if suffix == "json" and not long:
         # split-orient JSON carries its own index; do not consume a column
-        df.index = _coerce_index(df.index, freq)
-        if df.shape[1] == 1:
-            return ReadData(df.iloc[:, 0], None, "series")
-        return ReadData(df, None, "series")
+        if not isinstance(df.index, pd.MultiIndex):
+            df.index = _coerce_index(df.index, freq)
+            if df.shape[1] == 1:
+                return ReadData(df.iloc[:, 0], None, "series")
+            return ReadData(df, None, "series")
+        # a MultiIndex means Panel or Hierarchical, which sktime requires to
+        # stay a DataFrame: squeezing to a Series makes it an invalid mtype
+        kind = "panel" if df.index.nlevels == 2 else "hierarchical"
+        return ReadData(df, None, kind)
     if long:
         return _read_long(df, id_col, time_col, freq)
 

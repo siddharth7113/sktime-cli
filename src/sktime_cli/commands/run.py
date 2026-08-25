@@ -168,6 +168,28 @@ def _check_panel_input(inp: Input) -> None:
         )
 
 
+def _check_panel_labels(est, inp: Input) -> None:
+    """Reject unlabelled data for an estimator that needs labels.
+
+    Clusterers fit without labels; classifiers and regressors do not, and
+    handing them ``None`` fails deep inside sktime with an unpacking error.
+
+    Raises
+    ------
+    CliError
+        ``data_error`` explaining where labels have to come from.
+    """
+    if inp.labels is None and estimator_scitype(est) != "clusterer":
+        raise CliError(
+            "data_error",
+            "training data has no labels",
+            hint=(
+                "labels have to come with the data: use a .ts file that carries "
+                "them, or a named classification dataset"
+            ),
+        )
+
+
 def _fit_panel(est, inp: Input):
     """Fit a classifier, regressor, or clusterer on panel data.
 
@@ -185,16 +207,8 @@ def _fit_panel(est, inp: Input):
         estimator that needs labels. Clusterers fit without labels.
     """
     _check_panel_input(inp)
+    _check_panel_labels(est, inp)
     X, y = inp.obj, inp.labels
-    if y is None and estimator_scitype(est) != "clusterer":
-        raise CliError(
-            "data_error",
-            "training data has no labels",
-            hint=(
-                "labels have to come with the data: use a .ts file that carries "
-                "them, or a named classification dataset"
-            ),
-        )
     est.fit(X, y) if y is not None else est.fit(X)
     return len(X), {}
 
@@ -627,6 +641,7 @@ def fit_predict(
         # fit_predict, not fit+predict: sktime cross-validates the out-of-sample
         # part, so in-sample predictions are not optimistic.
         _check_panel_input(inp)
+        _check_panel_labels(est, inp)
         import pandas as pd
 
         pred = pd.Series(est.fit_predict(inp.obj, inp.labels), name="prediction")
