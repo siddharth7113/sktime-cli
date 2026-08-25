@@ -159,3 +159,63 @@ def test_evaluate_cv_spec_and_metric(invoke, airline_csv, tmp_path):
     assert len(payload["folds"]) == 6
     assert "test_MeanAbsoluteError" in payload["aggregate"]
     assert out.exists()
+
+
+def test_fit_dataset_name(invoke, tmp_path):
+    """A bare name resolves to a builtin dataset, no file needed."""
+    out = tmp_path / "byname.zip"
+    result = invoke(
+        "run",
+        "fit",
+        "NaiveForecaster(sp=12)",
+        "--data",
+        "airline",
+        "--model-out",
+        out,
+        "--json",
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["n_obs"] == 144
+
+
+def test_fit_missing_file_reports_the_file(invoke, tmp_path):
+    """A path-shaped --data that doesn't exist is a missing file, not a bad name."""
+    result = invoke(
+        "run",
+        "fit",
+        "NaiveForecaster(sp=12)",
+        "--data",
+        str(tmp_path / "airline.csv"),
+        "--json",
+    )
+    assert result.exit_code == 4
+    error = json.loads(result.stderr)["error"]
+    assert error["message"].startswith("file not found:")
+    assert "datasets load airline" in error["hint"]
+
+
+def test_fit_missing_file_unknown_stem_hints_listing(invoke, tmp_path):
+    """With no matching dataset, the hint points at the listing command."""
+    result = invoke(
+        "run",
+        "fit",
+        "NaiveForecaster(sp=12)",
+        "--data",
+        str(tmp_path / "sales.csv"),
+        "--json",
+    )
+    assert result.exit_code == 4
+    error = json.loads(result.stderr)["error"]
+    assert error["message"].startswith("file not found:")
+    assert "datasets list" in error["hint"]
+
+
+def test_fit_unknown_dataset_name_still_suggests_names(invoke):
+    """A name-shaped --data keeps the did-you-mean dataset suggestion."""
+    result = invoke(
+        "run", "fit", "NaiveForecaster(sp=12)", "--data", "airlin", "--json"
+    )
+    assert result.exit_code == 4
+    error = json.loads(result.stderr)["error"]
+    assert error["message"] == "unknown dataset: airlin"
+    assert "airline" in error["hint"]

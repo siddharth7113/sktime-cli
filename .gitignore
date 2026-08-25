@@ -30,3 +30,6 @@ PLAN.md
 
 # sphinx build output
 docs/_build/
+
+# local Claude Code state (skills, worktrees, settings)
+.claude/

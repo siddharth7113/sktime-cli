@@ -13,18 +13,28 @@ in Python:
 sktime-cli run fit "NaiveForecaster(sp=12)" --data airline --model-out model.zip
 ```
 
-Compositions use sktime's own operators, so a spec can build a pipeline, an
-ensemble, or a multiplexer without any extra syntax:
+Compositions use sktime's own operators, so a spec can build a pipeline or a
+multiplexer without any extra syntax:
 
 ```bash
 # pipeline: deseasonalize, then forecast
 sktime-cli run fit "Deseasonalizer() * NaiveForecaster()" --data airline
 
-# ensemble: average two forecasters
-sktime-cli run evaluate "AutoETS() + NaiveForecaster()" --data airline --fh 1:12
-
 # multiplexer: switch between components
 sktime-cli run fit "NaiveForecaster() | ThetaForecaster()" --data airline
+
+# union: combine two transformers into one feature set
+sktime-cli run fit "(Detrender() + Deseasonalizer()) * NaiveForecaster()" \
+    --data airline
+```
+
+`+` unions transformers; forecasters don't define it. Ensembles are a class
+rather than an operator, and a class name is just as usable in a spec:
+
+```bash
+sktime-cli run evaluate \
+    "EnsembleForecaster([('ets', AutoETS()), ('naive', NaiveForecaster())])" \
+    --data airline --fh 1:12
 ```
 
 Names are resolved against the cached registry, so anything `registry search`

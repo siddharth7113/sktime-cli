@@ -20,6 +20,7 @@ def test_transform_persists_and_reuses_a_fitted_transformer(
     invoke, airline_csv, tmp_path
 ):
     model = tmp_path / "detrender.zip"
+    out = tmp_path / "t.csv"
     fitted = invoke(
         "run",
         "transform",
@@ -28,10 +29,13 @@ def test_transform_persists_and_reuses_a_fitted_transformer(
         airline_csv,
         "--model-out",
         model,
+        "-o",
+        out,
         "--json",
     )
     assert fitted.exit_code == 0, fitted.output
     assert json.loads(fitted.stdout)["model"] == str(model)
+    assert model.exists()
 
     reused = invoke(
         "run", "transform", "--model", model, "--data", airline_csv, "--json"
@@ -198,6 +202,7 @@ def test_detect_rejects_a_non_detector(invoke, airline_csv):
 
 def test_detector_persists_and_reloads(invoke, airline_csv, tmp_path):
     model = tmp_path / "cp.zip"
+    out = tmp_path / "cp.csv"
     fitted = invoke(
         "run",
         "detect",
@@ -206,6 +211,8 @@ def test_detector_persists_and_reloads(invoke, airline_csv, tmp_path):
         airline_csv,
         "--model-out",
         model,
+        "-o",
+        out,
         "--json",
     )
     assert json.loads(fitted.stdout)["model"] == str(model)
@@ -233,3 +240,22 @@ def test_run_rejects_an_out_of_scope_scitype(invoke, airline_csv, tmp_path):
     error = json.loads(result.stderr)["error"]
     assert "splitter" in error["message"]
     assert "data split" in error["hint"]
+
+
+def test_model_path_goes_to_stderr_when_streaming(invoke, airline_csv, tmp_path):
+    """Without --output stdout is the data, so the model path must not pollute it."""
+    model = tmp_path / "streamed.zip"
+    result = invoke(
+        "run",
+        "transform",
+        "Detrender()",
+        "--data",
+        airline_csv,
+        "--model-out",
+        model,
+        "--json",
+    )
+    assert result.exit_code == 0, result.output
+    json.loads(result.stdout)  # stdout stays a single parseable document
+    assert str(model) in result.stderr
+    assert model.exists()

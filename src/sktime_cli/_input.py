@@ -44,6 +44,29 @@ def _split_target(obj, target: str, source: str):
     return obj[target], (rest if rest.shape[1] else None)
 
 
+def _looks_like_path(data: str) -> bool:
+    """Report whether --data reads as a filename, so a miss is a missing file."""
+    if "/" in data or "\\" in data:
+        return True
+    if ":" in data:  # namespaced dataset id, e.g. ucr:ArrowHead
+        return False
+    return Path(data).suffix != ""
+
+
+def _missing_data_file(data: str) -> CliError:
+    """Report a --data path that doesn't exist, suggesting a fetch when we can."""
+    from sktime_cli import _datasets
+
+    stem = Path(data).stem
+    try:
+        _datasets.resolve(stem)
+    except CliError:
+        hint = "pass an existing file, or a dataset name: sktime-cli datasets list"
+    else:
+        hint = f"fetch it first: sktime-cli datasets load {stem} --output {data}"
+    return CliError("not_found", f"file not found: {data}", hint=hint)
+
+
 def load(
     data: str,
     opts: ReadOptions | None = None,
@@ -55,6 +78,8 @@ def load(
     path = Path(data)
     if path.exists():
         return _load_file(path, opts, target, exog)
+    if _looks_like_path(data):
+        raise _missing_data_file(data)
     return _load_dataset(data, exog, opts)
 
 
