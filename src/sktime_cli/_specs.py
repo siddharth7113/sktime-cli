@@ -19,7 +19,7 @@ import textwrap
 from typing import Any
 
 from sktime_cli import _cache
-from sktime_cli._errors import CliError, missing_dependency
+from sktime_cli._errors import CliError, missing_dependency, packages_from_error
 
 # names allowed in specs beyond registry objects; keep minimal and boring
 _SAFE_NAMES: dict[str, Any] = {
@@ -53,9 +53,16 @@ def _collect_names(tree: ast.AST) -> tuple[set[str], set[str]]:
     return loads, stores
 
 
-def _resolve_namespace(names: set[str]) -> tuple[dict[str, Any], list[str]]:
-    """Import registry objects for ``names``; return (namespace, unknown)."""
+def _resolve_namespace(
+    names: set[str], extra: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], list[str]]:
+    """Import registry objects for ``names``; return (namespace, unknown).
+
+    ``extra`` injects names the sktime registry does not carry, such as the
+    sklearn splitters that panel cross-validation expects.
+    """
     namespace = dict(_SAFE_NAMES)
+    namespace.update(extra or {})
     unknown = []
     for name in sorted(names):
         if name in namespace:
@@ -89,7 +96,7 @@ def _craft_fallback(spec: str, unknown: list[str]):
                     "find them with: sktime-cli registry search"
                 ),
             ) from err
-        raise missing_dependency(f"spec {spec!r}", str(err.name)) from err
+        raise missing_dependency(f"spec {spec!r}", packages_from_error(err)) from err
     except Exception as err:
         raise CliError(
             code="spec_error",
@@ -99,8 +106,14 @@ def _craft_fallback(spec: str, unknown: list[str]):
         ) from err
 
 
-def build_estimator(spec: str, sets: list[str] | tuple = ()):
-    """Construct an estimator/object from a spec string, then apply --set."""
+def build_estimator(
+    spec: str, sets: list[str] | tuple = (), extra_names: dict[str, Any] | None = None
+):
+    """Construct an estimator/object from a spec string, then apply --set.
+
+    ``extra_names`` adds constructors to the spec namespace beyond the sktime
+    registry; see ``_resolve_namespace``.
+    """
     spec = textwrap.dedent(spec).strip()
     if not spec:
         raise CliError("spec_error", "empty spec string")
@@ -119,7 +132,7 @@ def build_estimator(spec: str, sets: list[str] | tuple = ()):
             ) from None
 
     loads, stores = _collect_names(tree)
-    namespace, unknown = _resolve_namespace(loads - stores)
+    namespace, unknown = _resolve_namespace(loads - stores, extra_names)
     if unknown:
         obj = _craft_fallback(spec, unknown)
     else:
@@ -134,7 +147,9 @@ def build_estimator(spec: str, sets: list[str] | tuple = ()):
         except CliError:
             raise
         except ModuleNotFoundError as err:
-            raise missing_dependency(f"spec {spec!r}", str(err.name)) from err
+            raise missing_dependency(
+                f"spec {spec!r}", packages_from_error(err)
+            ) from err
         except Exception as err:
             raise CliError(
                 "spec_error",

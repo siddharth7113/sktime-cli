@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import typer
 
-from sktime_cli._errors import CliError
+from sktime_cli._errors import CliError, from_module_not_found
 from sktime_cli._guard import FORMAT_OPT, JSON_OPT, handle_errors
 from sktime_cli._models import estimator_scitype
 from sktime_cli._output import OutputFormat, emit_record, emit_table, resolve_format
@@ -86,11 +86,7 @@ def check(
             tests_to_exclude=_split_csv(exclude),
         )
     except ModuleNotFoundError as err:
-        raise CliError(
-            "missing_dependency",
-            f"the contract checks need an extra package: {err.name}",
-            hint=f"uv pip install {err.name}",
-        ) from err
+        raise from_module_not_found(err, "the contract checks") from err
 
     rows = _rows(results)
     failed = [row for row in rows if row["status"] == "fail"]

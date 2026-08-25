@@ -673,12 +673,23 @@ def _resolve_panel_metric(name: str):
 
 
 def _resolve_panel_cv(cv: str | None):
-    """Resolve --cv for panel evaluation, defaulting to 3-fold cross-validation."""
-    if cv:
-        return build_estimator(cv)
-    from sklearn.model_selection import KFold
+    """Resolve --cv for panel evaluation, defaulting to 3-fold cross-validation.
 
-    return KFold(n_splits=3, shuffle=True, random_state=42)
+    Panel folds are drawn across instances rather than across time, so the
+    splitters that fit are sklearn's; they are not in sktime's registry, and
+    are injected into the spec namespace here.
+    """
+    import sklearn.model_selection as skcv
+
+    if cv:
+        splitters = {
+            name: getattr(skcv, name)
+            for name in dir(skcv)
+            if not name.startswith("_")
+            and name.endswith(("Fold", "Split", "ShuffleSplit"))
+        }
+        return build_estimator(cv, extra_names=splitters)
+    return skcv.KFold(n_splits=3, shuffle=True, random_state=42)
 
 
 def _emit_evaluation(results, output: Path | None, fmt: OutputFormat) -> None:

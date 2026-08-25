@@ -13,7 +13,7 @@ import traceback
 
 import typer
 
-from sktime_cli._errors import CliError
+from sktime_cli._errors import CliError, from_module_not_found
 from sktime_cli._output import OutputFormat, print_error
 
 FORMAT_OPT = typer.Option(
@@ -88,11 +88,7 @@ def handle_errors(func):
             _emit(err)
             raise typer.Exit(err.exit_code) from None
         except ModuleNotFoundError as err:
-            cli_err = CliError(
-                code="missing_dependency",
-                message=f"missing package: {err.name}",
-                hint=f"uv pip install {err.name}",
-            )
+            cli_err = from_module_not_found(err, _command_path() or "this command")
             _emit(cli_err)
             raise typer.Exit(cli_err.exit_code) from None
         except Exception as err:  # noqa: BLE001 - the documented catch-all

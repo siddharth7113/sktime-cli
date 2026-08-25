@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 
 def test_inspect_series(invoke, airline_csv):
@@ -48,3 +49,74 @@ def test_convert_to_json(invoke, airline_csv, tmp_path):
     assert result.exit_code == 0
     payload = json.loads(out.read_text())
     assert len(payload["data"]) == 144
+
+
+# --------------------------------------------------------------------------
+# cross-validation folds (0.0.2)
+
+
+def test_split_cv_writes_a_fold_per_split(invoke, airline_csv, tmp_path):
+    import shutil
+
+    data = tmp_path / "airline.csv"
+    shutil.copy(airline_csv, data)
+    result = invoke(
+        "data",
+        "split",
+        data,
+        "--cv",
+        "ExpandingWindowSplitter(initial_window=100, step_length=12, fh=[1,2,3])",
+        "--json",
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["n_folds"] == len(payload["folds"]) > 1
+    assert len(payload["files"]) == 2 * payload["n_folds"]
+    for fold in payload["folds"]:
+        assert Path(fold["train"]).exists()
+        assert Path(fold["test"]).exists()
+        assert fold["n_test"] == 3
+    # expanding window: each fold trains on more data than the last
+    sizes = [fold["n_train"] for fold in payload["folds"]]
+    assert sizes == sorted(sizes) and sizes[0] < sizes[-1]
+
+
+def test_split_cv_conflicts_with_sizing_options(invoke, airline_csv, tmp_path):
+    import shutil
+
+    data = tmp_path / "airline.csv"
+    shutil.copy(airline_csv, data)
+    result = invoke(
+        "data",
+        "split",
+        data,
+        "--cv",
+        "ExpandingWindowSplitter(fh=1)",
+        "--test-size",
+        "12",
+        "--json",
+    )
+    assert result.exit_code == 2
+    assert "cannot be combined" in json.loads(result.stderr)["error"]["message"]
+
+
+def test_split_cv_rejects_a_non_splitter(invoke, airline_csv, tmp_path):
+    import shutil
+
+    data = tmp_path / "airline.csv"
+    shutil.copy(airline_csv, data)
+    result = invoke("data", "split", data, "--cv", "NaiveForecaster()", "--json")
+    assert result.exit_code == 2
+    error = json.loads(result.stderr)["error"]
+    assert "needs a splitter" in error["message"]
+    assert "registry search splitter" in error["hint"]
+
+
+def test_split_with_no_sizing_option_is_a_usage_error(invoke, airline_csv, tmp_path):
+    import shutil
+
+    data = tmp_path / "airline.csv"
+    shutil.copy(airline_csv, data)
+    result = invoke("data", "split", data, "--json")
+    assert result.exit_code == 2
+    assert "--cv" in json.loads(result.stderr)["error"]["message"]

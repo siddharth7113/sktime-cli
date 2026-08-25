@@ -165,11 +165,11 @@ def import_object(record: dict):
     """Import and return the class a registry record points to."""
     import importlib
 
-    from sktime_cli._errors import missing_dependency
+    from sktime_cli._errors import missing_dependency, packages_from_error
 
     try:
         module = importlib.import_module(record["module"])
         return getattr(module, record["name"])
     except ModuleNotFoundError as err:
-        deps = record.get("python_dependencies") or [str(err.name)]
+        deps = record.get("python_dependencies") or packages_from_error(err)
         raise missing_dependency(record["name"], deps) from err

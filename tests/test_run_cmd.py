@@ -219,3 +219,55 @@ def test_fit_unknown_dataset_name_still_suggests_names(invoke):
     error = json.loads(result.stderr)["error"]
     assert error["message"] == "unknown dataset: airlin"
     assert "airline" in error["hint"]
+
+
+# --------------------------------------------------------------------------
+# panel evaluation (0.0.2)
+
+
+def test_evaluate_a_classifier(invoke, unit_test_ts):
+    result = invoke(
+        "run", "evaluate", "DummyClassifier()", "--data", unit_test_ts, "--json"
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert len(payload["folds"]) == 3
+    assert "test_accuracy_score" in payload["aggregate"]
+
+
+def test_evaluate_a_classifier_with_a_custom_cv(invoke, unit_test_ts):
+    payload = json.loads(
+        invoke(
+            "run",
+            "evaluate",
+            "DummyClassifier()",
+            "--data",
+            unit_test_ts,
+            "--cv",
+            "KFold(n_splits=2)",
+            "--json",
+        ).stdout
+    )
+    assert len(payload["folds"]) == 2
+
+
+def test_evaluate_rejects_a_scitype_without_a_cv_utility(invoke, airline_csv):
+    result = invoke("run", "evaluate", "Detrender()", "--data", airline_csv, "--json")
+    assert result.exit_code == 2
+    assert "transformer" in json.loads(result.stderr)["error"]["message"]
+
+
+def test_evaluate_surfaces_a_failing_fold(invoke, unit_test_ts):
+    """error_score='raise': a bad metric is an error, not a silent NaN column."""
+    result = invoke(
+        "run",
+        "evaluate",
+        "DummyClassifier()",
+        "--data",
+        unit_test_ts,
+        "--metric",
+        "f1_score",
+        "--json",
+    )
+    assert result.exit_code != 0
+    assert json.loads(result.stderr)["error"]["code"] == "sktime_error"
