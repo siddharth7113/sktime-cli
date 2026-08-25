@@ -81,7 +81,7 @@ jobs:
   # break without failing the build, so the signal arrives before a release
   # turns it into a user-visible bug.
   upstream-drift:
-    name: Upstream drift (${{ matrix.check }})
+    name: Advisory - upstream drift (${{ matrix.check }})
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:

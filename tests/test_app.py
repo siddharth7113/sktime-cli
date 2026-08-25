@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 import sktime_cli
 
 
@@ -36,7 +38,9 @@ def test_package_version_matches_pyproject():
     """The release workflow tags from pyproject; the two must not drift."""
     from pathlib import Path
 
-    import tomllib
+    # tomllib is stdlib only from 3.11, and the project supports 3.10. The
+    # assertion does not vary by interpreter, so the rest of the matrix covers it.
+    tomllib = pytest.importorskip("tomllib")
 
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     declared = tomllib.loads(pyproject.read_text())["project"]["version"]
