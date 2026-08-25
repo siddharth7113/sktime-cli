@@ -64,6 +64,18 @@ def test_predict_seasonal_naive(invoke, model_zip):
     assert payload["index"][0] == "1961-01"
 
 
+def test_predict_data_takes_a_dataset_name(invoke, unit_test_ts, tmp_path):
+    """--data resolves dataset names in predict, like it does in fit."""
+    model = tmp_path / "clf.zip"
+    fitted = invoke(
+        "run", "fit", "DummyClassifier()", "--data", unit_test_ts, "--model-out", model
+    )
+    assert fitted.exit_code == 0, fitted.output
+
+    result = invoke("run", "predict", "--model", model, "--data", "unit_test", "--json")
+    assert result.exit_code == 0, result.output
+
+
 def test_predict_without_fh_hints(invoke, model_zip):
     result = invoke("run", "predict", "--model", model_zip, "--json")
     assert result.exit_code == 2

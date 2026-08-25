@@ -129,6 +129,12 @@ def _fit(est, scitype: str, inp: dict, fh_text: str | None):
     )
 
 
+def _load_x(data: str):
+    """Resolve --data for predict into one object: exog X, or a panel to score."""
+    inp = _load_input(data)
+    return inp["y"] if inp["kind"] == "series" else inp["X"]
+
+
 def _predict(est, scitype: str, fh_text: str | None, data: str | None, proba: bool):
     """Dispatch predict by scitype; returns a pandas object."""
     import pandas as pd
@@ -137,7 +143,7 @@ def _predict(est, scitype: str, fh_text: str | None, data: str | None, proba: bo
         fh = _io.parse_fh(fh_text) if fh_text else None
         X = None
         if data:
-            X = _io.read_any(Path(data)).obj
+            X = _load_x(data)
         try:
             return est.predict(fh=fh, X=X)
         except ValueError as err:
@@ -150,8 +156,7 @@ def _predict(est, scitype: str, fh_text: str | None, data: str | None, proba: bo
             raise
     if data is None:
         raise CliError("usage", f"{scitype} predict needs --data with panel X")
-    read = _io.read_any(Path(data))
-    X = read.obj
+    X = _load_x(data)
     if proba:
         result = est.predict_proba(X)
         classes = [str(c) for c in getattr(est, "classes_", range(result.shape[1]))]
@@ -214,7 +219,12 @@ def predict(
     model: Path = typer.Option(..., "--model", help="Model .zip from `run fit`."),
     fh: str | None = typer.Option(None, "--fh", help="Horizon, e.g. 1:12."),
     data: str | None = typer.Option(
-        None, "--data", help="X data: exog for forecasters, panel for classifiers."
+        None,
+        "--data",
+        help=(
+            "X data, as a file path or a dataset name: exog for forecasters, "
+            "panel for classifiers."
+        ),
     ),
     proba: bool = typer.Option(False, "--proba", help="Class probabilities."),
     output: Path | None = typer.Option(
