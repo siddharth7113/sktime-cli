@@ -8,7 +8,7 @@ description: >
   or backtesting task when working from a terminal.
 ---
 
-# sktime-cli — time series ML from the shell
+# sktime-cli: time series ML from the shell
 
 `sktime-cli` is a stateless CLI over [sktime](https://github.com/sktime/sktime).
 Every command reads files/names, calls sktime, writes results, and exits.
@@ -19,11 +19,11 @@ Fitted models are `.zip` artifacts on disk; there is no session state.
 - Always pass `--json`: exactly one JSON document on stdout, nothing else.
   Logs and warnings go to stderr. `--format agent` gives TSV instead.
 - Errors are JSON on **stderr**:
-  `{"error": {"code", "message", "hint", "command"}}` — follow the `hint`,
+  `{"error": {"code", "message", "hint", "command"}}`. Follow the `hint`,
   it usually contains the exact fix (often an install command).
 - Exit codes: `0` ok · `1` library error · `2` usage · `3` missing
   dependency · `4` not found · `5` bad data/spec.
-- Estimators are given as **spec strings** — Python-like constructor
+- Estimators are given as **spec strings**, which are Python-like constructor
   expressions using sktime class names:
   `"NaiveForecaster(sp=12)"`, compositions with `*` (pipeline),
   `+` (ensemble), `|` (multiplexer): `"Deseasonalizer() * NaiveForecaster()"`.
@@ -120,7 +120,7 @@ sktime-cli model inspect model.zip --spec      # prints the spec string only
 sktime-cli model inspect model.zip --fitted --json   # learned parameters
 ```
 
-`--spec` output is a valid spec for `run fit` — the reproducibility loop.
+`--spec` output is a valid spec for `run fit`, which closes the reproducibility loop.
 
 ## Troubleshooting
 

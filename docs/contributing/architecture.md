@@ -28,9 +28,12 @@ sktime_cli/
 │       ├── run.py            # fit · predict · fit-predict · evaluate
 │       ├── model.py          # inspect
 │       └── env.py            # version · env · doctor · cache info/clear
-├── skills/sktime-cli/SKILL.md  # agent-facing contract; also shipped inside the wheel
-├── tests/                    # pytest + Typer CliRunner; network tests marked
-└── docs/                     # you are here
+├── skills/sktime-cli/SKILL.md  # agent-facing contract, also shipped inside the wheel
+├── tests/                    # pytest + Typer CliRunner, network tests marked
+└── docs/                     # this documentation site
+    ├── conf.py               # Sphinx configuration
+    ├── _ext/typer_cli.py     # generates the CLI reference from the live app
+    └── assets/generate.py    # renders the terminal captures
 ```
 
 ## Dependency layering
@@ -76,7 +79,7 @@ rich, and platformdirs import is function-local, so `sktime-cli --help` and
 | `_io.py` | File formats sktime doesn't handle itself; index conventions; `--fh` grammar | `read_any()`, `write_any()`, `parse_fh()`, `parse_size()` |
 | `_datasets.py` | Dataset ID grammar (`airline`, `ucr:ArrowHead`, …) and loader normalization | `resolve()`, `load()`, `listing()`, `BUILTIN` |
 | `_models.py` | Model artifact `.zip` in/out | `save_model()`, `load_model()`, `estimator_scitype()` |
-| `commands/*` | Option surfaces and orchestration only — no domain logic | one `typer.Typer` per group |
+| `commands/*` | Option surfaces and orchestration only, no domain logic | one `typer.Typer` per group |
 
 ## The life of a command
 
@@ -86,20 +89,20 @@ Taking `sktime-cli run fit "NaiveForecaster(sp=12)" --data airline.csv
 1. **Root callback** (`app.py:_root`) stores the global `--format`/`--json`
    choice in `_output` and the cache flags in `_cache`. Global state is fine
    here because every invocation is one short-lived process.
-2. **Guard** — the leaf command is wrapped by `_guard.handle_errors`, so from
+2. **Guard**: the leaf command is wrapped by `_guard.handle_errors`, so from
    this point every failure becomes a structured error on stderr plus a
-   meaningful exit code (see [design.md — error model](design.md#error-model)).
-3. **Spec engine** — `_specs.build_estimator` parses the spec with `ast`,
+   meaningful exit code (see [the error model in Design](design.md#error-model)).
+3. **Spec engine**: `_specs.build_estimator` parses the spec with `ast`,
    resolves `NaiveForecaster` against the cached registry, imports just that
    module, and evaluates the expression in a builtins-free namespace.
-4. **Data loading** — `run._load_input` treats `--data` polymorphically: an
+4. **Data loading**: `run._load_input` treats `--data` polymorphically: an
    existing path is read via `_io.read_any` (index conventions applied),
    anything else resolves as a dataset name via `_datasets.resolve`.
-5. **Fit dispatch** — forecasters get `fit(y, X, fh)`; panel scitypes
+5. **Fit dispatch**: forecasters get `fit(y, X, fh)`; panel scitypes
    (classifier/regressor/clusterer) get `fit(X, y)`.
-6. **Artifact** — `_models.save_model` writes the `.zip` (defaulting into the
+6. **Artifact**: `_models.save_model` writes the `.zip` (defaulting into the
    workspace `models/` dir when `--model-out` is omitted).
-7. **Output** — a result record goes through `_output.emit_record` in
+7. **Output**: a result record goes through `_output.emit_record` in
    whichever format was resolved: rich table (human), TSV (agent), one JSON
    document (json), or just the essential value (quiet).
 
@@ -107,7 +110,7 @@ Taking `sktime-cli run fit "NaiveForecaster(sp=12)" --data airline.csv
 
 Tests run the CLI in-process through `typer.testing.CliRunner` (`invoke`
 fixture in `tests/conftest.py`). A session-scoped autouse fixture points
-`SKTIME_CLI_HOME` at a temp directory, so tests never touch the real cache —
-this works because `_cache.cli_home()` reads the environment at call time,
+`SKTIME_CLI_HOME` at a temp directory, so tests never touch the real cache.
+This works because `_cache.cli_home()` reads the environment at call time,
 not import time. Tests that download data are marked `network` and excluded
 by default (`addopts = "-m 'not network'"` in `pyproject.toml`).

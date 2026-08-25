@@ -1,4 +1,4 @@
-"""``sktime-cli data`` — inspect, convert, split data files (mirrors inspect_data)."""
+"""``sktime-cli data``: inspect, convert, split data files (mirrors inspect_data)."""
 
 from __future__ import annotations
 
@@ -170,8 +170,12 @@ def split(
     exog: Path | None = typer.Option(
         None, "--exog", help="Exogenous data file split alongside y."
     ),
-    train_out: Path | None = typer.Option(None, "--train-out"),
-    test_out: Path | None = typer.Option(None, "--test-out"),
+    train_out: Path | None = typer.Option(
+        None, "--train-out", help="Train output path (default: <stem>_train<suffix>)."
+    ),
+    test_out: Path | None = typer.Option(
+        None, "--test-out", help="Test output path (default: <stem>_test<suffix>)."
+    ),
     input_format: str | None = INPUT_OPTS["input_format"],
     index_col: str = INPUT_OPTS["index_col"],
     freq: str | None = INPUT_OPTS["freq"],

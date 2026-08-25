@@ -16,13 +16,28 @@ jobs:
       - name: Run pre-commit
         run: uvx pre-commit run --all-files
 
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      # --no-sources: CI has no sibling sktime checkout; use sktime from PyPI.
+      - name: Install dependencies
+        run: uv sync --no-sources --extra docs
+      # -W matches Read the Docs, which builds with fail_on_warning.
+      - name: Build the documentation
+        run: uv run --no-sources sphinx-build -b html -W docs docs/_build/html
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
