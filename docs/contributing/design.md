@@ -162,13 +162,14 @@ workspace so `cache clear` reclaims them.
 ## Agents as first-class users
 
 The CLI ships its own manual for agents:
-[SKILL.md](https://github.com/siddharth7113/sktime-cli/blob/main/src/sktime_cli/.agents/skills/sktime-cli/SKILL.md)
+[SKILL.md](https://github.com/siddharth7113/sktime-cli/blob/main/skills/sktime-cli/SKILL.md)
 documents the
 contract (always `--json`, read errors from stderr, follow the hint, exit
 codes) plus task recipes for discovery, data prep, forecasting, backtesting,
-and classification. It lives inside the package, at
-`sktime_cli/.agents/skills/sktime-cli/`, which is the convention
-package-bundled skills follow, so an installed environment carries its own
+and classification. It is authored at `skills/sktime-cli/` in the repository,
+which is where skill indexers and `npx skills add` look, and the wheel build
+copies it to `sktime_cli/.agents/skills/sktime-cli/`, the convention
+package-bundled skills follow. So an installed environment carries its own
 documentation and tools like [library-skills](https://library-skills.io) find
 it without knowing anything about this project.
 

@@ -118,7 +118,7 @@ directory. For Claude Code that's `~/.claude/skills` for every project, or
 
 ```bash
 mkdir -p ~/.claude/skills/sktime-cli
-curl -fsSL https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/src/sktime_cli/.agents/skills/sktime-cli/SKILL.md \
+curl -fsSL https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/skills/sktime-cli/SKILL.md \
   -o ~/.claude/skills/sktime-cli/SKILL.md
 ```
 

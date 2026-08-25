@@ -69,13 +69,20 @@ The links are relative and point into the installed package, so upgrading
 ### From a standalone install
 
 `library-skills` reads the project's environment, so a CLI installed with
-`uv tool install` is out of its reach. Copy the file into your agent's skill
-directory instead. For Claude Code, that is `~/.claude/skills` for every
-project, or `.claude/skills` for one:
+`uv tool install` is out of its reach. Take the skill from this repository
+instead. The [skills CLI](https://skills.sh) installs it for whichever agent
+you point it at:
+
+```bash
+npx skills add siddharth7113/sktime-cli
+```
+
+Or copy the file into your agent's skill directory yourself. For Claude Code,
+that is `~/.claude/skills` for every project, or `.claude/skills` for one:
 
 ```bash
 mkdir -p ~/.claude/skills/sktime-cli
-curl -fsSL https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/src/sktime_cli/.agents/skills/sktime-cli/SKILL.md \
+curl -fsSL https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/skills/sktime-cli/SKILL.md \
   -o ~/.claude/skills/sktime-cli/SKILL.md
 ```
 

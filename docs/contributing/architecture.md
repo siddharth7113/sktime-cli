@@ -24,7 +24,6 @@ sktime_cli/
 │   ├── _frames.py            # flattens MultiIndex forecasts and segments into long form
 │   ├── _datasets.py          # dataset name resolution and loaders (builtin/ucr/tsf/fpp3)
 │   ├── _models.py            # model .zip save/load
-│   ├── .agents/skills/sktime-cli/SKILL.md   # agent-facing contract, shipped in the wheel
 │   └── commands/
 │       ├── registry.py       # search · describe · tags · types
 │       ├── datasets.py       # list · describe · load
@@ -35,6 +34,7 @@ sktime_cli/
 │       ├── metrics.py        # list · score
 │       ├── check.py          # validate an object against sktime's API contract
 │       └── env.py            # version · env · doctor · cache info/clear
+├── skills/sktime-cli/SKILL.md   # agent-facing contract, copied into the wheel
 ├── tests/                    # pytest + Typer CliRunner, network tests marked
 ├── scripts/scitype_coverage.py  # regenerates the scitype coverage breakdown
 └── docs/                     # this documentation site
