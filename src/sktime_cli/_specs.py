@@ -344,9 +344,38 @@ def resolve_metric(name_or_spec: str):
         raise CliError(
             "not_found",
             f"unknown metric: {name_or_spec}",
-            hint="list metrics with: sktime-cli registry search metric_forecasting",
+            hint=_metric_hint(name_or_spec),
         )
     return _cache.import_object(record)()
+
+
+def _metric_hint(name: str) -> str:
+    """Say where to find the metric the caller asked for.
+
+    These are sktime's metric objects, which score forecasts. Classifiers and
+    regressors are scored with functions from ``sklearn.metrics``, which live
+    somewhere else entirely, so a caller who asked for one of those needs to
+    be sent to ``run evaluate`` rather than told to search a registry that
+    will never hold it.
+
+    Parameters
+    ----------
+    name : str
+        The unresolved ``--metric`` value.
+
+    Returns
+    -------
+    str
+        A hint naming the command that accepts the metric asked for.
+    """
+    import sklearn.metrics
+
+    if callable(getattr(sklearn.metrics, name, None)):
+        return (
+            f"{name} is an sklearn metric, for classifiers and regressors; "
+            f"score those with: sktime-cli run evaluate --metric {name}"
+        )
+    return "list metrics with: sktime-cli metrics list"
 
 
 def resolve_cv(spec: str | None, fh, initial_window: int | None, n_obs: int):

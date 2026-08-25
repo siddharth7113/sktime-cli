@@ -55,3 +55,20 @@ def test_emit_frame_json_period_index(capsys):
     assert payload["index"] == ["2020-01", "2020-02", "2020-03"]
     assert payload["columns"] == ["v"]
     assert payload["data"] == [[1.0], [2.0], [3.0]]
+
+
+@pytest.mark.parametrize(
+    "field, text",
+    [
+        ("message", "requires missing package(s): sktime[dev]"),
+        ("hint", 'uv pip install "sktime-cli[parquet]"'),
+        ("detail", "ExpandingWindowSplitter(fh=[1,2,3], bogus=1)"),
+    ],
+)
+def test_square_brackets_survive_human_error_output(capsys, field, text):
+    """Rich reads [dev] as a markup tag and drops it, losing the extra."""
+    from sktime_cli._output import print_error
+
+    body = {"code": "missing_dependency", "message": "x", field: text}
+    print_error({"error": body}, human=True)
+    assert text in capsys.readouterr().err

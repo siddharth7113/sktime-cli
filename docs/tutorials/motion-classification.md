@@ -308,7 +308,8 @@ sktime-cli metrics score --true motions_test.ts --pred preds.csv --metric accura
 :caption: Output
 
 error (not_found): unknown metric: accuracy_score
-hint: list metrics with: sktime-cli registry search metric_forecasting
+hint: accuracy_score is an sklearn metric, for classifiers and regressors; score those
+with: sktime-cli run evaluate --metric accuracy_score
 ```
 
 For classifiers, score with `run evaluate`. It holds the labels and the
