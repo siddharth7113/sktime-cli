@@ -11,3 +11,24 @@
 dl.simple > dd {
   margin-bottom: 0.6rem;
 }
+
+/* Command output is shown under the command that produced it, in a captioned
+   block. The caption is a label rather than a title, so play it down. */
+.code-block-caption {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pst-color-text-muted);
+  margin-bottom: 0.2rem;
+}
+
+/* Pull an output block up against the command block above it. */
+div[class^="highlight-"] + div.literal-block-wrapper {
+  margin-top: -0.7rem;
+}
+
+/* The caption is a label, not a section; it needs no permalink. */
+.code-block-caption .headerlink {
+  display: none;
+}

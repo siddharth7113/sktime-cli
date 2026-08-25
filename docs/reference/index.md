@@ -1,7 +1,8 @@
 # Reference
 
-[CLI reference](cli.md)
-: Every command and option, generated from the application itself.
+[CLI reference](cli/index.md)
+: Every command and option, generated from the application itself, with one
+  page per command group.
 
 [Environment and workspace](environment.md)
 : Environment variables, the workspace layout, and how the registry cache is
@@ -10,6 +11,6 @@
 ```{toctree}
 :hidden:
 
-cli
+cli/index
 environment
 ```

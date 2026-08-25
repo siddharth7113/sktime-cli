@@ -1,5 +1,7 @@
 """Missing-dependency reporting, including sktime's nameless import errors."""
 
+import os
+
 import pytest
 
 from sktime_cli._errors import (
@@ -92,3 +94,49 @@ def test_load_of_a_dataset_with_uninstalled_deps_names_the_package(invoke):
     assert error["code"] == "missing_dependency"
     assert "None" not in error["message"]
     assert "None" not in error["hint"]
+
+
+def test_sktime_frames_are_attributed_to_sktime():
+    """A real sktime frame is sktime's, whatever directory it is installed under.
+
+    Attribution used to look for the substring `"sktime"` in a frame's path
+    while excluding `"sktime_cli"`. Installing the CLI under a directory named
+    `sktime_cli` puts every genuine sktime frame under that name too, so real
+    sktime failures were reported as internal CLI bugs. CI never saw it,
+    because GitHub checks the repository out to `sktime-cli`, with a hyphen.
+    """
+    from sktime_cli._guard import _in_sktime, _sktime_root
+
+    root = _sktime_root()
+    assert root is not None, "sktime must be importable for this test"
+    assert _in_sktime(os.path.join(root, "forecasting", "base.py"))
+    assert not _in_sktime(os.path.join(os.path.dirname(root), "pandas", "core.py"))
+
+
+def test_a_directory_named_after_the_cli_does_not_hide_sktime(monkeypatch):
+    """The regression itself: sktime under a `sktime_cli` parent still counts."""
+    import sktime_cli._guard as guard
+
+    root = os.path.normcase(
+        os.path.join(os.sep, "home", "u", "sktime_cli", ".venv", "lib", "sktime")
+    )
+    monkeypatch.setattr(guard, "_sktime_root", lambda: root)
+    assert guard._in_sktime(os.path.join(root, "forecasting", "base.py"))
+
+
+def test_cli_frames_are_not_attributed_to_sktime():
+    """The CLI's own package is never mistaken for sktime, however it is named."""
+    import sktime_cli
+    from sktime_cli._guard import _in_sktime
+
+    cli_root = os.path.dirname(os.path.abspath(sktime_cli.__file__))
+    assert not _in_sktime(os.path.join(cli_root, "_guard.py"))
+
+
+def test_sibling_directories_are_not_inside_sktime(monkeypatch):
+    """A path that merely starts with sktime's root is outside it."""
+    import sktime_cli._guard as guard
+
+    root = os.path.normcase(os.path.join(os.sep, "env", "sktime"))
+    monkeypatch.setattr(guard, "_sktime_root", lambda: root)
+    assert not guard._in_sktime(os.path.join(os.sep, "env", "sktime_extras", "x.py"))

@@ -4,6 +4,28 @@ All notable changes to `sktime-cli` are recorded here. The project follows
 [semantic versioning](https://semver.org/), with the caveat that `0.0.x`
 releases may break the command surface while the design settles.
 
+## Unreleased
+
+### Fixed
+
+- `uv sync` in a clone of this repository installed sktime as an editable
+  install from a sibling `../sktime` checkout, because a maintainer-only
+  `[tool.uv.sources]` table was committed to `pyproject.toml` and baked into
+  `uv.lock`. Contributors with a local sktime clone silently developed against
+  whatever was in it, and contributors without one could not sync at all.
+  sktime now resolves from PyPI like any other dependency, and the
+  `--no-sources` workarounds in CI and on Read the Docs are gone. To test
+  against unreleased sktime, install it over the synced environment; see
+  [Contributing](docs/contributing/index.md).
+- Errors raised inside sktime were reported as `internal` CLI bugs, rather
+  than `sktime_error`, whenever sktime-cli was installed under a directory
+  named `sktime_cli`. Attribution walked the traceback for the substring
+  `"sktime"` in a frame's path while excluding `"sktime_cli"`, and a
+  virtualenv below such a directory puts that name in front of every sktime
+  frame. Attribution now tests containment in sktime's real package
+  directory. CI could not catch this, because GitHub checks the repository
+  out to `sktime-cli`, with a hyphen.
+
 ## 0.0.2 (2026-08-25)
 
 The framework-coverage release. `run` dispatched on 4 of sktime's 25 scitypes

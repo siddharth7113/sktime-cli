@@ -34,7 +34,13 @@ exclude_patterns = ["_build", "assets/generate.py", "Thumbs.db", ".DS_Store"]
 myst_enable_extensions = ["colon_fence", "deflist", "substitution"]
 # Render ```mermaid fences through sphinxcontrib-mermaid.
 myst_fence_as_directive = ["mermaid"]
-myst_heading_anchors = 3
+myst_heading_anchors = 4
+
+# -- Copy buttons -----------------------------------------------------------
+
+# Commands are copyable; the output blocks printed under them are not, since
+# copying a result is never what a reader wants.
+copybutton_selector = "div.highlight-bash pre"
 
 # -- HTML output ------------------------------------------------------------
 

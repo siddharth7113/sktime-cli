@@ -14,13 +14,17 @@ cd sktime-cli
 uv sync
 ```
 
-The `[tool.uv.sources]` table points sktime at a sibling checkout at
-`../sktime`, which makes it convenient to test against unreleased sktime. If
-you don't have one, resolve sktime from PyPI instead:
+`uv sync` resolves sktime from PyPI. To test the CLI against unreleased
+sktime instead, install your own checkout over the synced environment:
 
 ```bash
-uv sync --no-sources
+uv pip install -e ../sktime          # a local sktime clone
+uv pip install "sktime @ git+https://github.com/sktime/sktime.git@main"
 ```
+
+Both override sktime in place, and the next `uv sync` puts the PyPI version
+back. Keep the override out of `pyproject.toml`: a `[tool.uv.sources]` entry
+there is committed, so it would reach everyone who clones the repository.
 
 Install the pre-commit hooks once:
 

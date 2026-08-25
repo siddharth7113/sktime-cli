@@ -3,6 +3,11 @@
 These pages cover the CLI task by task. Each one is self-contained, so you can
 read the one that matches what you're doing.
 
+Every command is shown with the output it produces. Long listings are cut,
+marked with `...`, and the result count at the end of the block is the real
+one. Counts that depend on your sktime version or your installed packages
+differ in your terminal.
+
 [Finding estimators](discovery.md)
 : Search sktime's registry by scitype, name, and capability tag, and read an
   estimator's parameters, tags, and dependencies before you use it.

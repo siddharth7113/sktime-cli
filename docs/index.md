@@ -50,6 +50,14 @@ sktime-cli run predict --model model.zip --fh 1:12
 Go from an empty shell to a fitted forecaster and a set of predictions.
 :::
 
+:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Tutorials
+:link: tutorials/index
+:link-type: doc
+
+Work a real problem end to end: forecast oil prices, classify sensor data, or
+set up an agent to do it for you.
+:::
+
 :::{grid-item-card} {octicon}`search;1.5em;sd-mr-1` Find an estimator
 :link: guide/discovery
 :link-type: doc
@@ -113,6 +121,7 @@ release: discovery and one-shot runs work, and the
 
 installation
 quickstart
+tutorials/index
 guide/index
 reference/index
 roadmap

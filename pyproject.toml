@@ -60,9 +60,6 @@ dev = [
   "pyarrow>=14",
 ]
 
-[tool.uv.sources]
-sktime = { path = "../sktime", editable = true }
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/sktime_cli"]
 

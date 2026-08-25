@@ -18,12 +18,10 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-      # --no-sources: in CI there is no sibling sktime checkout, so resolve
-      # sktime from PyPI instead of the [tool.uv.sources] editable path.
       - name: Install dependencies
-        run: uv sync --no-sources
+        run: uv sync
       - name: Run tests
-        run: uv run --no-sources pytest -n auto
+        run: uv run pytest -n auto
 
   build:
     name: Build distribution
@@ -41,7 +39,7 @@ jobs:
             exit 1
           fi
       - name: Build sdist and wheel
-        run: uv build --no-sources
+        run: uv build
       - name: Smoke-test the wheel
         run: |
           uv venv smoke-env
