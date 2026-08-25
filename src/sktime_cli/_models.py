@@ -10,7 +10,23 @@ from sktime_cli._errors import CliError
 
 
 def save_model(estimator, path: Path | None) -> Path:
-    """Save a fitted estimator; returns the .zip path actually written."""
+    """Serialize a fitted estimator to a ``.zip`` artifact.
+
+    Parameters
+    ----------
+    estimator : sktime estimator
+        The fitted object to save.
+    path : Path or None
+        Destination. A ``.zip`` suffix is added if absent, since sktime's
+        ``save`` appends it. When ``None``, a timestamped name is generated
+        under the workspace ``models`` directory.
+
+    Returns
+    -------
+    Path
+        The file actually written, which is what callers report so the user
+        can pass it back to ``--model``.
+    """
     if path is None:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         path = subdir("models") / f"{type(estimator).__name__}-{stamp}.zip"
@@ -22,14 +38,38 @@ def save_model(estimator, path: Path | None) -> Path:
 
 
 def load_model(path: str | Path):
-    """Load an estimator from a .zip artifact written by ``save_model``."""
+    """Load an estimator from a ``.zip`` artifact.
+
+    Parameters
+    ----------
+    path : str or Path
+        The artifact to load. A missing ``.zip`` suffix is added.
+
+    Returns
+    -------
+    sktime estimator
+        The estimator, still fitted.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` if the file does not exist; ``data_error`` if it exists
+        but is not an sktime artifact, hinting at what does produce one.
+    """
     from sktime.base import load
 
-    path = Path(path)
-    if path.suffix != ".zip":
-        path = path.with_suffix(path.suffix + ".zip")
+    given = Path(path)
+    path = given if given.suffix == ".zip" else given.with_suffix(given.suffix + ".zip")
     if not path.exists():
-        raise CliError("not_found", f"model file not found: {path}")
+        if given.exists():
+            # naming a file that exists but is not an artifact should say so,
+            # not send the user hunting for a .zip they never referenced
+            raise CliError(
+                "not_found",
+                f"{given} is not a model artifact",
+                hint="pass a .zip written by: sktime-cli run fit --model-out",
+            )
+        raise CliError("not_found", f"model file not found: {given}")
     try:
         return load(path)
     except Exception as err:
@@ -41,7 +81,19 @@ def load_model(path: str | Path):
 
 
 def estimator_scitype(estimator) -> str:
-    """Return the single scitype string of an estimator."""
+    """Return an estimator's scitype.
+
+    Parameters
+    ----------
+    estimator : sktime estimator
+        Object to classify. May be fitted or not.
+
+    Returns
+    -------
+    str
+        One scitype string, e.g. ``"forecaster"``. Feed it to
+        :func:`sktime_cli._scitypes.handler_for` to find the handler.
+    """
     from sktime.registry import scitype
 
     return scitype(estimator)

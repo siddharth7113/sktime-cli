@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import difflib
+
 import typer
 
 from sktime_cli import _cache
@@ -14,6 +16,24 @@ app = typer.Typer(no_args_is_help=True)
 
 
 def _parse_tag_filters(filters: list[str]) -> dict:
+    """Parse repeated ``--filter-tag KEY=VALUE`` options into a filter mapping.
+
+    Parameters
+    ----------
+    filters : list of str
+        Raw option values. A comma in the value means "any of", so
+        ``scitype:y=univariate,both`` matches either.
+
+    Returns
+    -------
+    dict
+        Tag name to wanted value, or to a list of acceptable values.
+
+    Raises
+    ------
+    CliError
+        ``usage`` for a value with no ``=``.
+    """
     parsed = {}
     for item in filters:
         if "=" not in item:
@@ -27,6 +47,24 @@ def _parse_tag_filters(filters: list[str]) -> dict:
 
 
 def _tag_matches(tag_value, wanted) -> bool:
+    """Test one tag value against a wanted value.
+
+    Both sides may be lists, and they mean different things: a list of wanted
+    values is a disjunction, while a list tag value is a set the wanted value
+    must appear in.
+
+    Parameters
+    ----------
+    tag_value : Any
+        The value the object declares.
+    wanted : Any
+        The value, or values, asked for.
+
+    Returns
+    -------
+    bool
+        Whether the object matches.
+    """
     if isinstance(wanted, list):
         return any(_tag_matches(tag_value, w) for w in wanted)
     if isinstance(tag_value, list):
@@ -35,6 +73,21 @@ def _tag_matches(tag_value, wanted) -> bool:
 
 
 def _validate_scitype(scitype: str) -> None:
+    """Check a scitype exists before filtering on it.
+
+    Catching a typo here turns a confusing empty result into an error that
+    points at the command listing the valid names.
+
+    Parameters
+    ----------
+    scitype : str
+        The name to check.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` if sktime declares no such scitype.
+    """
     from sktime.registry import BASE_CLASS_SCITYPE_LIST
 
     if scitype not in BASE_CLASS_SCITYPE_LIST:
@@ -43,6 +96,52 @@ def _validate_scitype(scitype: str) -> None:
             f"unknown scitype: {scitype}",
             hint="list scitypes with: sktime-cli registry types",
         )
+
+
+def _validate_tags(names: list[str], scitype: str | None) -> None:
+    """Reject tag names that cannot match, so a typo is not an empty result.
+
+    Filtering on a tag no object carries can only return nothing, which reads
+    the same as a genuine no-match. Restricting to a scitype narrows this
+    further: a tag can be real and still never appear on the kind of object
+    being searched, which is the more common mistake, since sktime moves tags
+    between object types across releases.
+
+    Parameters
+    ----------
+    names : list of str
+        Tag names from ``--filter-tag`` and ``--with-tags``.
+    scitype : str or None
+        The scitype being searched, if one was given.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` naming the tags that cannot match, with close matches
+        drawn from the tags that are actually available here.
+    """
+    if not names:
+        return
+    available = {
+        tag
+        for record in _cache.get_registry()
+        if not scitype or scitype in record["scitypes"]
+        for tag in record["tags"]
+    }
+    unknown = [name for name in names if name not in available]
+    if not unknown:
+        return
+    subject = f"{scitype}s" if scitype else "sktime objects"
+    close = difflib.get_close_matches(unknown[0], sorted(available), n=3)
+    raise CliError(
+        "not_found",
+        f"no {subject} carry the tag(s): {', '.join(unknown)}",
+        hint=(
+            f"did you mean: {', '.join(close)}"
+            if close
+            else f"list tags with: sktime-cli registry tags {scitype or ''}".strip()
+        ),
+    )
 
 
 @app.command("search")
@@ -77,8 +176,11 @@ def search(
     fmt = resolve_format(format_, json_)
     if scitype:
         _validate_scitype(scitype)
+    if limit is not None and limit < 1:
+        raise CliError("usage", f"--limit must be 1 or more, got {limit}")
     filters = _parse_tag_filters(filter_tag)
     extra_tags = [t.strip() for t in with_tags.split(",")] if with_tags else []
+    _validate_tags([*filters, *extra_tags], scitype)
 
     rows = []
     for record in _cache.get_registry():
@@ -127,10 +229,17 @@ def describe(
     fmt = resolve_format(format_, json_)
     record = _cache.lookup(name)
     if record is None:
+        close = difflib.get_close_matches(
+            name, [r["name"] for r in _cache.get_registry()], n=3
+        )
         raise CliError(
             "not_found",
             f"unknown object: {name}",
-            hint="search with: sktime-cli registry search -n " + name,
+            hint=(
+                f"did you mean: {', '.join(close)}"
+                if close
+                else f"search with: sktime-cli registry search -n {name}"
+            ),
         )
 
     defaults = record["param_defaults"]

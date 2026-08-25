@@ -11,14 +11,14 @@ files are read, and how to prepare them for a run.
 
 ```bash
 sktime-cli datasets list --source builtin
-sktime-cli datasets list --task classification -n arrow
+sktime-cli datasets list --task classifier -n arrow
 ```
 
-`--source` takes `builtin`, `ucr`, `tsf`, `fpp3`, or `objects`. `--task`
-takes `forecasting`, `classification`, or `regression`. `-n` matches a
-substring of the name.
+`--source` takes `builtin`, `ucr`, `tsf`, or `fpp3`. `--task` takes sktime's
+scitype names, `forecaster`, `classifier`, or `regressor`, so it reads the same
+way as `registry search`. `-n` matches a substring of the name.
 
-`datasets describe` reports the shape and classes of a built-in dataset, or a
+`datasets describe` reports the tags and shape of a built-in dataset, or a
 source note for a remote one. It never downloads:
 
 ```bash
@@ -49,6 +49,24 @@ sktime-cli datasets load fpp3:aus_arrivals
 
 An explicit prefix pins the source. An unknown name produces suggestions, and
 an ambiguous bare name lists the namespaced candidates instead of picking one.
+
+The built-in names are the `name` tags sktime's own dataset objects declare,
+not a list maintained here, so a dataset added upstream is available with no
+change to the CLI. That also means the spelling is sktime's: `gun_point`
+rather than `gunpoint`, `hierarchical_sales_toydata` rather than
+`hierarchical_sales`.
+
+Because those objects carry their shape and frequency as tags, `datasets
+describe` can answer without reading the data at all:
+
+```bash
+sktime-cli datasets describe airline --no-load
+```
+
+That reports the task, frequency, length, dimensionality, whether the series
+is univariate and equally spaced, whether it has exogenous columns, and how
+many splits it defines. Drop `--no-load` to add the loaded shape and, for
+classification datasets, the class labels.
 
 Remote downloads land inside the workspace directory, so `sktime-cli cache
 clear` reclaims the space. For where that directory is, see [Environment and
@@ -116,7 +134,8 @@ sktime-cli data convert panel.ts --output panel.csv --to-mtype pd-multiindex
 
 `--to` names the output format when the output suffix doesn't already say it.
 `--to-mtype` converts the in-memory representation before writing. Writing to
-`.npy` produces a numpy array and accepts no other suffix.
+`.npy` accepts only data already converted to a numpy mtype with `--to-mtype`,
+for example `--to-mtype numpy3D`.
 
 ## Split a series for backtesting
 
@@ -140,6 +159,27 @@ exogenous file at the same point.
 By default the outputs are named after the input, as `<stem>_train<suffix>`
 and `<stem>_test<suffix>`. Use `--train-out` and `--test-out` to choose your
 own paths.
+
+### Cross-validation folds
+
+A single train/test cut is enough for a quick check, but backtesting wants
+several. `--cv` takes any splitter from the registry and writes one file pair
+per fold:
+
+```bash
+sktime-cli data split airline.csv \
+    --cv "ExpandingWindowSplitter(initial_window=72, step_length=12, fh=[1,2,3])"
+```
+
+The files are named `<stem>_fold<N>_train<suffix>` and
+`<stem>_fold<N>_test<suffix>`, and the command prints a manifest with the fold
+count and each fold's sizes and paths. `--cv` replaces the sizing options
+rather than combining with them.
+
+Use this when you want the folds on disk, to run something other than
+`run evaluate` over them. If you only want scores, `run evaluate --cv` does
+the same split in memory. Discover splitters with
+`sktime-cli registry search splitter`.
 
 ## Horizon syntax
 

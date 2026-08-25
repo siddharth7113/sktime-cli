@@ -63,7 +63,7 @@ sktime-cli run fit "NaiveForecaster(sp=12)" \
     --model-out model.zip
 ```
 
-`--data` accepts a file path or a dataset name. An existing file wins, so
+`--data` accepts a file path or a dataset name. A path is read as a file and a bare name as a dataset, so
 `--data airline` also works and loads the built-in dataset directly.
 
 The fitted model is a `.zip` artifact. If you omit `--model-out`, the CLI

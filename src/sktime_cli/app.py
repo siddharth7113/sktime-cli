@@ -8,6 +8,7 @@ import typer
 
 from sktime_cli import __version__, _cache
 from sktime_cli._errors import CliError
+from sktime_cli._guard import install_usage_error_contract
 from sktime_cli._output import OutputFormat, set_root_format
 
 app = typer.Typer(
@@ -25,6 +26,11 @@ app = typer.Typer(
 
 
 def _version_callback(value: bool) -> None:
+    """Print the version and exit, before any other option is processed.
+
+    Eager, so ``--version`` works without the arguments a subcommand would
+    otherwise require.
+    """
     if value:
         print(__version__)
         raise typer.Exit()
@@ -64,8 +70,23 @@ def _root(
 
 
 def _register_commands() -> None:
-    """Attach command groups; separate function keeps import order explicit."""
-    from sktime_cli.commands import data, datasets, env, model, registry, run
+    """Attach every command group to the root application.
+
+    Kept a function, with its imports inside, so the order in which command
+    modules are imported is explicit and the help listing order is the one
+    written here rather than an accident of import order.
+    """
+    from sktime_cli.commands import (
+        catalogues,
+        check,
+        data,
+        datasets,
+        env,
+        metrics,
+        model,
+        registry,
+        run,
+    )
 
     app.command("version")(env.version)
     app.command("env")(env.env_info)
@@ -73,14 +94,22 @@ def _register_commands() -> None:
     app.add_typer(env.cache_app, name="cache")
     app.add_typer(registry.app, name="registry", help="Discover sktime objects.")
     app.add_typer(datasets.app, name="datasets", help="List and fetch datasets.")
+    app.add_typer(
+        catalogues.app, name="catalogues", help="Browse benchmark catalogues."
+    )
     app.add_typer(data.app, name="data", help="Inspect, convert, split data files.")
-    app.add_typer(run.app, name="run", help="One-shot fit/predict/evaluate.")
+    app.add_typer(
+        run.app, name="run", help="One-shot fit/predict/transform/detect/evaluate."
+    )
     app.add_typer(model.app, name="model", help="Inspect saved model artifacts.")
+    app.add_typer(metrics.app, name="metrics", help="List metrics and score results.")
+    app.command("check")(check.check)
 
 
 _register_commands()
+install_usage_error_contract()
 
 
 def main() -> None:
-    """Console-script entry point."""
+    """Run the CLI. This is the ``sktime-cli`` console-script entry point."""
     app()

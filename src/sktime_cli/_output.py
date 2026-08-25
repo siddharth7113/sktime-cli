@@ -16,7 +16,21 @@ from typing import Any
 
 
 class OutputFormat(str, Enum):
-    """The five output formats of the CLI."""
+    """The five output formats of the CLI.
+
+    Attributes
+    ----------
+    auto
+        Resolve at runtime: ``human`` on a TTY, ``agent`` otherwise.
+    human
+        Rich tables, for reading in a terminal.
+    agent
+        Tab-separated values with a header row, never truncated.
+    json
+        Exactly one JSON document per invocation, with no envelope.
+    quiet
+        The single most useful value and nothing else, for shell capture.
+    """
 
     auto = "auto"
     human = "human"
@@ -30,7 +44,14 @@ _root_format: OutputFormat = OutputFormat.auto
 
 
 def set_root_format(fmt: OutputFormat) -> None:
-    """Record the format chosen via root-level ``--format``/``--json``."""
+    """Record the format chosen by the root-level ``--format`` or ``--json``.
+
+    Parameters
+    ----------
+    fmt : OutputFormat
+        The root choice, which leaf commands fall back to when they were not
+        given their own.
+    """
     global _root_format
     _root_format = fmt
 
@@ -38,7 +59,28 @@ def set_root_format(fmt: OutputFormat) -> None:
 def resolve_format(
     leaf_format: OutputFormat = OutputFormat.auto, leaf_json: bool = False
 ) -> OutputFormat:
-    """Resolve the effective format from leaf options, root options, and TTY."""
+    """Resolve the format actually in force for this command.
+
+    Precedence runs leaf option, then root option, then whether stdout is a
+    terminal. Every command calls this first.
+
+    Parameters
+    ----------
+    leaf_format : OutputFormat, default auto
+        The subcommand's own ``--format``.
+    leaf_json : bool, default False
+        The subcommand's own ``--json`` shorthand.
+
+    Returns
+    -------
+    OutputFormat
+        A concrete format, never ``auto``.
+
+    Raises
+    ------
+    CliError
+        ``usage`` if ``--json`` was combined with a conflicting ``--format``.
+    """
     from sktime_cli._errors import CliError
 
     if leaf_json and leaf_format not in (OutputFormat.auto, OutputFormat.json):
@@ -52,7 +94,20 @@ def resolve_format(
 
 
 def json_default(obj: Any) -> Any:
-    """JSON fallback serializer for pandas/numpy scalar types."""
+    """Serialize the pandas and numpy types ``json`` does not know.
+
+    Parameters
+    ----------
+    obj : Any
+        A value the encoder could not handle.
+
+    Returns
+    -------
+    Any
+        A numpy scalar as its Python equivalent, so numbers stay numbers;
+        anything else as its string form, which covers ``Period``,
+        ``Timestamp``, and ``Path``.
+    """
     if hasattr(obj, "item"):  # numpy scalars
         try:
             return obj.item()
@@ -62,11 +117,16 @@ def json_default(obj: Any) -> Any:
 
 
 def _dump(payload: Any) -> str:
+    """Serialize a payload to compact JSON, tolerating pandas and numpy types."""
     return json.dumps(payload, default=json_default)
 
 
 def _cell(value: Any) -> str:
-    """Render one value for human/agent cells."""
+    """Render one value for a human or agent table cell.
+
+    Strings pass through so they are not quoted; everything else is JSON, so a
+    nested list or dict stays machine-readable inside a flat cell.
+    """
     if value is None:
         return ""
     if isinstance(value, str):
@@ -77,7 +137,22 @@ def _cell(value: Any) -> str:
 def emit_record(
     record: dict, fmt: OutputFormat, quiet_value: Any | None = None
 ) -> None:
-    """Emit a single result object (describe/manifest/version-style output)."""
+    """Write a single result object to stdout in the chosen format.
+
+    Use this for describe, manifest, and version style output: one thing with
+    named fields. For a list of such things use :func:`emit_table`, and for
+    data use :func:`emit_frame`.
+
+    Parameters
+    ----------
+    record : dict
+        The result. Key order is preserved in every format.
+    fmt : OutputFormat
+        A concrete format from :func:`resolve_format`.
+    quiet_value : Any, optional
+        What ``quiet`` prints. When ``None``, ``quiet`` prints nothing, which
+        is correct for commands whose value is their side effect.
+    """
     if fmt == OutputFormat.json:
         print(_dump(record))
     elif fmt == OutputFormat.agent:
@@ -104,9 +179,33 @@ def emit_table(
     columns: list[str] | None = None,
     quiet_key: str | None = None,
 ) -> None:
-    """Emit a list of result objects (search/list-style output)."""
+    """Write a list of result objects to stdout in the chosen format.
+
+    Use this for search and list style output.
+
+    Parameters
+    ----------
+    rows : list of dict
+        The results. All rows should share a shape.
+    fmt : OutputFormat
+        A concrete format from :func:`resolve_format`.
+    columns : list of str, optional
+        Which keys to show, in order. Defaults to the keys of the first row.
+    quiet_key : str, optional
+        Which key ``quiet`` prints, one row per line, so the output pipes into
+        another command. When ``None``, ``quiet`` prints nothing.
+
+    Notes
+    -----
+    The human format prints a result count to stderr, keeping stdout to the
+    table itself.
+    """
     if columns is None:
         columns = list(rows[0].keys()) if rows else []
+    if not columns and fmt == OutputFormat.agent:
+        # an empty result still owes agent format a header line: a script that
+        # skips line 1 must not silently consume its first row of data
+        columns = ["name"]
     if fmt == OutputFormat.json:
         print(_dump(rows))
     elif fmt == OutputFormat.agent:
@@ -131,7 +230,25 @@ def emit_table(
 
 
 def emit_frame(frame, fmt: OutputFormat, file=None) -> None:
-    """Emit a pandas Series/DataFrame result (predictions, folds, data)."""
+    """Write a pandas result to stdout in the chosen format.
+
+    Use this for data: predictions, transformed series, evaluation folds.
+
+    Parameters
+    ----------
+    frame : pd.Series or pd.DataFrame
+        The data. A Series is promoted to a one-column frame.
+    fmt : OutputFormat
+        A concrete format from :func:`resolve_format`.
+    file : file-like, optional
+        Where to write. Defaults to stdout.
+
+    Notes
+    -----
+    The json format uses pandas "split" orient, ``{"index", "columns",
+    "data"}``, which is what :func:`sktime_cli._io.read_any` reads back. The
+    agent and quiet formats emit CSV, with a header only for agent.
+    """
     import pandas as pd
 
     if isinstance(frame, pd.Series):
@@ -162,7 +279,11 @@ def emit_frame(frame, fmt: OutputFormat, file=None) -> None:
 
 
 def _index_label(value: Any) -> Any:
-    """Make an index/column label JSON-friendly, keeping numbers as numbers."""
+    """Make one index or column label JSON-friendly.
+
+    Numbers stay numbers rather than becoming strings, so a consumer can index
+    on them; a ``MultiIndex`` entry becomes a list.
+    """
     if isinstance(value, (int, float, str, bool)) or value is None:
         return value
     if isinstance(value, tuple):  # MultiIndex entry
@@ -171,7 +292,18 @@ def _index_label(value: Any) -> Any:
 
 
 def print_error(payload: dict, human: bool) -> None:
-    """Print an error object to stderr, styled for humans or JSON for machines."""
+    """Write an error to stderr, styled for a human or as JSON for a machine.
+
+    Errors always go to stderr, whatever the output format, so a caller
+    reading stdout gets either a result or nothing.
+
+    Parameters
+    ----------
+    payload : dict
+        The envelope from :meth:`sktime_cli._errors.CliError.to_dict`.
+    human : bool
+        Render with colour and labels rather than as JSON.
+    """
     if human:
         from rich.console import Console
 

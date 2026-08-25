@@ -104,7 +104,7 @@ Errors that name the fix
 ## Project status
 
 `sktime-cli` is an independent, unofficial command-line client for sktime. It
-is not maintained by the sktime project. Version 0.0.1 is an early alpha
+is not maintained by the sktime project. Version 0.0.2 is an early alpha
 release: discovery and one-shot runs work, and the
 [roadmap](roadmap.md) lists what comes next.
 

@@ -108,7 +108,7 @@ sktime-cli run evaluate "NaiveForecaster(sp=12)" --data airline.csv --fh 1:12 \
 ```
 
 `--data` takes either a file path or a dataset name, so once you know the name
-you can skip the download and pass `--data airline` directly. An existing file
+you can skip the download and pass `--data airline` directly. A path is read
 wins, so a local `airline.csv` shadows the built-in `airline` dataset.
 
 For a longer walkthrough, see the
@@ -120,10 +120,12 @@ For a longer walkthrough, see the
 |---|---|---|
 | `registry` | `search` · `describe` · `tags` · `types` | Find sktime estimators by scitype, name, and capability tag |
 | `datasets` | `list` · `describe` · `load` | Browse and fetch built-in, UCR/UEA, Monash, and fpp3 datasets |
-| `data` | `inspect` · `convert` · `split` | Detect mtypes and scitypes, convert formats, split temporally |
-| `run` | `fit` · `predict` · `fit-predict` · `evaluate` | One-shot workflows for forecasting and classification |
+| `catalogues` | `list` · `get` | Browse sktime's benchmark catalogues |
+| `data` | `inspect` · `convert` · `split` | Detect mtypes and scitypes, convert formats, split temporally and into folds |
+| `run` | `fit` · `predict` · `fit-predict` · `transform` · `detect` · `evaluate` | One-shot workflows for forecasting, classification, transformation and detection |
 | `model` | `inspect` | Look inside a saved model artifact and round-trip its spec |
-| *(top level)* | `version` · `env` · `doctor` · `cache` | Environment info, health check, workspace management |
+| `metrics` | `list` · `score` | List metric objects and score predictions against observations |
+| *(top level)* | `check` · `version` · `env` · `doctor` · `cache` | Validate an object against sktime's API, environment info, health check, workspace |
 
 Every option is listed in the
 [CLI reference](https://sktime-cli.readthedocs.io/en/latest/reference/cli.html),
@@ -175,7 +177,7 @@ Full documentation is at
 `sktime-cli` is an independent, unofficial command-line client for sktime. It
 is not maintained by or affiliated with the sktime project.
 
-Version 0.0.1 is an early alpha release. Discovery and one-shot runs work, and
+Version 0.0.2 is an early alpha release. Discovery and one-shot runs work, and
 the [roadmap](https://sktime-cli.readthedocs.io/en/latest/roadmap.html) lists
 what comes next.
 

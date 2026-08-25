@@ -56,6 +56,13 @@ uv run pre-commit run --all-files
 Both the test suite and pre-commit run in CI on every push and pull request,
 across Python 3.10 to 3.14.
 
+CI also pins the sktime axis, because a Python matrix alone cannot catch an
+sktime release changing behaviour underneath the CLI. Two blocking jobs test
+against the declared floor and the newest release. Two further jobs are
+advisory (`continue-on-error`): one installs sktime from `main`, and one runs
+the suite with `-W error::FutureWarning`, so an upstream deprecation shows up
+while there is still time to act on it rather than when it is removed.
+
 ## Build the documentation
 
 The docs are Sphinx with MyST Markdown. To build them locally:

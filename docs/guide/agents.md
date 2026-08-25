@@ -11,9 +11,10 @@ An agent should follow four rules:
 1. Pass `--json` on every call. The command then writes exactly one JSON
    document to stdout and nothing else.
 2. Read errors from stderr. A failure is a JSON object with `code`,
-   `message`, `hint`, and `command` fields.
-3. Act on the `hint`. It usually contains the exact command that fixes the
-   problem, most often an install command.
+   `message`, and `command`, plus `hint` and `detail` where they apply.
+3. Branch on `code`, which is stable across releases. Act on the `hint` when
+   there is one: it usually contains the exact command that fixes the problem,
+   most often an install command.
 4. Branch on the exit code. Code `3` means a missing optional dependency, `4`
    means something wasn't found, and `5` means the data or the spec was
    invalid.

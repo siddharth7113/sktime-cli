@@ -26,25 +26,38 @@ INPUT_OPTS = {
         None, "--freq", help="Pandas frequency for the index, e.g. M, D."
     ),
     "long": typer.Option(
-        False, "--long", help="Long-format panel: needs --id-col/--time-col."
+        False, "--long", help="Long-format panel; requires --id-col and --time-col."
     ),
     "id_col": typer.Option(None, "--id-col", help="Instance id column (long format)."),
     "time_col": typer.Option(None, "--time-col", help="Time column (long format)."),
 }
 
-_METADATA_KEYS = [
-    "is_univariate",
-    "n_features",
-    "feature_names",
-    "is_equally_spaced",
-    "has_nans",
-    "n_instances",
-    "n_panels",
-    "is_one_series",
-]
+# `scitype` and `mtype` are reported as top-level fields, so they are not
+# repeated inside the metadata block. Everything else the check returns is
+# passed through, so a field added upstream appears without a change here.
+_PROMOTED_METADATA = ("scitype", "mtype")
 
 
 def _scitype_check(obj):
+    """Ask sktime to classify an object and describe it.
+
+    Parameters
+    ----------
+    obj : pd.Series or pd.DataFrame
+        The data to classify.
+
+    Returns
+    -------
+    dict
+        sktime's metadata, including ``scitype``, ``mtype``, and whatever
+        descriptive fields the check computed.
+
+    Raises
+    ------
+    CliError
+        ``data_error`` when the object is not a recognized sktime container,
+        carrying sktime's own explanation.
+    """
     from sktime.datatypes import check_is_scitype
 
     valid, msg, meta = check_is_scitype(
@@ -85,7 +98,11 @@ def inspect(
         "scitype": meta.get("scitype"),
         "mtype": meta.get("mtype"),
         "shape": list(getattr(data.obj, "shape", [len(data.obj)])),
-        "metadata": {k: meta[k] for k in _METADATA_KEYS if k in meta},
+        "metadata": {
+            key: value
+            for key, value in sorted(meta.items())
+            if key not in _PROMOTED_METADATA
+        },
     }
     index = data.obj.index
     record["index"] = {
@@ -111,7 +128,12 @@ def convert(
     path: Path = typer.Argument(..., help="Input data file."),
     output: Path = typer.Option(..., "--output", "-o", help="Output file path."),
     to: str | None = typer.Option(
-        None, "--to", help="Output file format: csv|parquet|json|ts|npy."
+        None,
+        "--to",
+        help=(
+            "Output file format: csv|parquet|json|ts. "
+            "npy works only with --to-mtype numpy3D."
+        ),
     ),
     to_mtype: str | None = typer.Option(
         None, "--to-mtype", help="Convert to an sktime mtype first, e.g. pd-multiindex."
@@ -167,6 +189,11 @@ def split(
     fh: str | None = typer.Option(
         None, "--fh", help="Forecasting horizon to size the test set, e.g. 1:12."
     ),
+    cv: str | None = typer.Option(
+        None,
+        "--cv",
+        help='Splitter spec for k-fold output, e.g. "ExpandingWindowSplitter(fh=6)".',
+    ),
     exog: Path | None = typer.Option(
         None, "--exog", help="Exogenous data file split alongside y."
     ),
@@ -182,17 +209,25 @@ def split(
     format_: OutputFormat = FORMAT_OPT,
     json_: bool = JSON_OPT,
 ) -> None:
-    """Split a series temporally into train and test files."""
+    """Split a series into train/test files, or into cross-validation folds."""
     from sktime.split import temporal_train_test_split
 
     fmt = resolve_format(format_, json_)
-    if fh and test_size:
-        raise CliError("usage", "--fh and --test-size are mutually exclusive")
-    if not (fh or test_size or train_size):
-        raise CliError("usage", "pass --test-size, --train-size, or --fh")
+    if cv and (fh or test_size or train_size):
+        raise CliError(
+            "usage", "--cv produces folds; it cannot be combined with --fh/--*-size"
+        )
+    if not cv:
+        if fh and test_size:
+            raise CliError("usage", "--fh and --test-size are mutually exclusive")
+        if not (fh or test_size or train_size):
+            raise CliError("usage", "pass --test-size, --train-size, --fh, or --cv")
 
     data = _io.read_any(path, input_format=input_format, index_col=index_col, freq=freq)
     y = data.obj
+    if cv:
+        _emit_folds(y, cv, path, train_out, test_out, fmt)
+        return
     X = _io.read_any(exog, index_col=index_col, freq=freq).obj if exog else None
 
     kwargs = {
@@ -200,7 +235,22 @@ def split(
         "train_size": _io.parse_size(train_size),
         "fh": _io.parse_fh(fh) if fh else None,
     }
+    for flag, value in (
+        ("--test-size", kwargs["test_size"]),
+        ("--train-size", kwargs["train_size"]),
+    ):
+        _check_size(flag, value, len(y))
     if X is not None:
+        if not len(y.index.intersection(X.index)):
+            raise CliError(
+                "data_error",
+                "the --exog file does not cover the same index as the input series",
+                hint="both files must span the same periods",
+                detail=(
+                    f"{path.name} spans {y.index[0]}..{y.index[-1]}, "
+                    f"{exog.name} spans {X.index[0]}..{X.index[-1]}"
+                ),
+            )
         y_train, y_test, X_train, X_test = temporal_train_test_split(y, X=X, **kwargs)
     else:
         y_train, y_test = temporal_train_test_split(y, **kwargs)
@@ -224,3 +274,116 @@ def split(
         record["exog_test"] = str(x_test_out)
     record["files"] = files
     emit_record(record, fmt, quiet_value=f"{train_out} {test_out}")
+
+
+def _check_size(flag: str, value, n_obs: int) -> None:
+    """Reject a split size that cannot produce two non-empty parts.
+
+    ``temporal_train_test_split`` accepts a size larger than the series and a
+    negative one, writing an empty train file at exit 0 either way, which is
+    silent data loss rather than a split.
+
+    Parameters
+    ----------
+    flag : str
+        The option being checked, named in the error.
+    value : int, float or None
+        The parsed size. ``None`` means the option was not given.
+    n_obs : int
+        Length of the series being split.
+
+    Raises
+    ------
+    CliError
+        ``usage`` when the size is not a positive count inside the series, or
+        not a fraction strictly between 0 and 1.
+    """
+    if value is None:
+        return
+    if isinstance(value, float):
+        if not 0 < value < 1:
+            raise CliError(
+                "usage",
+                f"{flag} as a fraction must be between 0 and 1, got {value}",
+            )
+        return
+    if value < 1:
+        raise CliError("usage", f"{flag} must be 1 or more, got {value}")
+    if value >= n_obs:
+        raise CliError(
+            "usage",
+            f"{flag} is {value} but the series has only {n_obs} observations",
+            hint="leave room for both parts, or pass a fraction such as 0.2",
+        )
+
+
+def _emit_folds(y, cv: str, path: Path, train_out, test_out, fmt: OutputFormat) -> None:
+    """Write one train/test file pair per cross-validation fold.
+
+    Parameters
+    ----------
+    y : pd.Series or pd.DataFrame
+        The series to split.
+    cv : str
+        A splitter spec.
+    path : Path
+        The input file, used to name the outputs.
+    train_out, test_out : Path or None
+        Stems for the output names, defaulting to the input's.
+    fmt : OutputFormat
+        A concrete format from :func:`resolve_format`.
+
+    Raises
+    ------
+    CliError
+        ``usage`` if the spec is not a splitter; ``data_error`` if the
+        splitter produced no folds, which usually means the window is larger
+        than the series.
+    """
+    from sktime_cli._specs import build_estimator
+
+    splitter = build_estimator(cv)
+    if not hasattr(splitter, "split"):
+        raise CliError(
+            "usage",
+            f"--cv needs a splitter, got {type(splitter).__name__}",
+            hint="list splitters with: sktime-cli registry search splitter",
+        )
+
+    suffix = path.suffix or ".csv"
+    train_stem = Path(train_out).with_suffix("") if train_out else path.with_suffix("")
+    test_stem = Path(test_out).with_suffix("") if test_out else path.with_suffix("")
+
+    folds, files = [], []
+    for i, (train_idx, test_idx) in enumerate(splitter.split(y)):
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+        train_path = train_stem.with_name(f"{train_stem.name}_fold{i}_train{suffix}")
+        test_path = test_stem.with_name(f"{test_stem.name}_fold{i}_test{suffix}")
+        written = _io.write_any(y_train, train_path) + _io.write_any(y_test, test_path)
+        files += written
+        folds.append(
+            {
+                "fold": i,
+                "n_train": int(len(y_train)),
+                "n_test": int(len(y_test)),
+                "train": str(train_path),
+                "test": str(test_path),
+            }
+        )
+
+    if not folds:
+        raise CliError(
+            "data_error",
+            f"{type(splitter).__name__} produced no folds for {len(y)} observations",
+            hint="lower initial_window, or use a shorter horizon",
+        )
+    emit_record(
+        {
+            "splitter": str(splitter),
+            "n_folds": len(folds),
+            "folds": folds,
+            "files": files,
+        },
+        fmt,
+        quiet_value="\n".join(f["train"] + " " + f["test"] for f in folds),
+    )
