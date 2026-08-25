@@ -6,9 +6,18 @@ block ending in ``return`` (same grammar as ``sktime.registry.craft``).
 
 Resolution is sktime-first from the cached registry (imports only the modules
 actually named). ``registry.craft`` is used only as a fallback for non-sktime
-names, because upstream ``craft`` crawls sklearn and currently fails with
-``ModuleNotFoundError: pytest`` in lean environments (sklearn's conftest.py is
-imported by the crawl).
+names, for two reasons: it crawls all of sklearn, which is slow, and the crawl
+is currently broken in lean environments.
+
+The breakage, for whoever removes this workaround: ``craft`` calls
+``_all_sklearn_estimators``, which walks the sklearn package with
+``MODULES_TO_IGNORE_SKLEARN = ["array_api_compat", "tests", "experimental"]``.
+That skips test *packages* but not ``sklearn/conftest.py``, which sits at the
+top level and imports ``pytest`` at module scope. Any environment without
+pytest therefore gets ``ModuleNotFoundError: pytest`` from a plain
+``craft("StandardScaler()")``. Adding ``"conftest"`` to that ignore list fixes
+it; verified against sktime 1.1.0. Once a release carries the fix, the
+``err.name == "pytest"`` branch below can go.
 """
 
 from __future__ import annotations

@@ -101,8 +101,19 @@ jobs:
       - name: Run tests
         if: matrix.check == 'sktime-main'
         run: uv run --no-sources pytest -n auto
-      # Turn upstream FutureWarnings into failures so a scheduled removal is
-      # visible while there is still time to act on it.
+      # Turn upstream deprecation warnings into failures, so a scheduled
+      # removal is visible while there is still time to act on it.
+      #
+      # The ignore list is deprecations already seen and accepted; without it
+      # this job would stay red until the removal lands and would hide the
+      # next one. Each entry names the release that clears it, and expires by
+      # itself: once upstream removes the tag the warning stops, the filter
+      # matches nothing, and anything new turns the job red again.
+      #
+      # Accepted:
+      #   capability:global_forecasting - skbase warns while collecting tags on
+      #     any class declaring it. sktime-cli neither sets nor reads the tag,
+      #     so there is nothing to change here; sktime 1.2.0 removes it.
       - name: Run tests with deprecations as errors
         if: matrix.check == 'deprecations'
-        run: uv run --no-sources pytest -n auto -W error::FutureWarning -W error::DeprecationWarning
+        run: uv run --no-sources pytest -n auto -o $'filterwarnings=\n    error::FutureWarning\n    error::DeprecationWarning\n    ignore:tag .capability.global_forecasting. will be removed:FutureWarning'
