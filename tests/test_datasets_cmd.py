@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 
 def test_list_builtin(invoke):
     result = invoke("datasets", "list", "--source", "builtin", "--json")
@@ -47,3 +49,18 @@ def test_load_classification_ts(invoke, tmp_path):
 def test_unknown_dataset_suggests(invoke):
     result = invoke("datasets", "load", "airlin", "--json")
     assert result.exit_code == 4
+
+
+def test_remote_dataset_reports_its_missing_packages(monkeypatch):
+    """fpp3 needs requests and rdata: name both, before any download."""
+    import importlib.util
+
+    from sktime_cli import _datasets
+    from sktime_cli._errors import CliError
+
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+    with pytest.raises(CliError) as excinfo:
+        _datasets.load("fpp3", "ansett")
+    assert excinfo.value.code == "missing_dependency"
+    assert "requests, rdata" in excinfo.value.message
+    assert excinfo.value.hint == "uv pip install requests rdata"

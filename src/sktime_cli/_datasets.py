@@ -57,6 +57,19 @@ BUILTIN: dict[str, dict[str, Any]] = {
 }
 
 
+# soft dependencies a remote source needs on top of sktime itself
+REMOTE_NEEDS: dict[str, list[str]] = {"fpp3": ["requests", "rdata"]}
+
+
+def _require(what: str, deps: list[str]) -> None:
+    """Fail with a ready-to-run install hint when soft dependencies are absent."""
+    import importlib.util
+
+    missing = [dep for dep in deps if importlib.util.find_spec(dep) is None]
+    if missing:
+        raise missing_dependency(what, missing)
+
+
 def _remote_names() -> dict[str, list[str]]:
     from sktime.datasets import DATASET_NAMES_FPP3, tsc_dataset_names
     from sktime.datasets.tsf_dataset_names import tsf_all
@@ -124,11 +137,7 @@ def load(source: str, name: str, split: str | None = None) -> dict[str, Any]:
 
     if source == "builtin":
         entry = BUILTIN[name]
-        for dep in entry.get("needs", []):
-            import importlib.util
-
-            if importlib.util.find_spec(dep) is None:
-                raise missing_dependency(f"dataset {name}", entry["needs"])
+        _require(f"dataset {name}", entry.get("needs", []))
         loader = getattr(skd, entry["loader"])
         task = entry["task"]
         if task == "forecasting":
@@ -140,6 +149,8 @@ def load(source: str, name: str, split: str | None = None) -> dict[str, Any]:
         kwargs = {"split": split.upper()} if split else {}
         X, y = loader(**kwargs)
         return {"task": task, "X": X, "y": y}
+
+    _require(f"dataset {source}:{name}", REMOTE_NEEDS.get(source, []))
 
     if source == "ucr":
         X, y = skd.load_UCR_UEA_dataset(

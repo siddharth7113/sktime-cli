@@ -8,6 +8,7 @@ under ``typer.testing.CliRunner``.
 from __future__ import annotations
 
 import functools
+import re
 import sys
 import traceback
 
@@ -75,6 +76,26 @@ def _classify(err: Exception) -> CliError:
     )
 
 
+# skbase's soft-dependency check raises ModuleNotFoundError without ``name``,
+# naming the package in the message instead
+_PACKAGE_IN_MESSAGE = re.compile(r"package '([^']+)'|No module named '([^']+)'")
+
+
+def _missing_module(err: ModuleNotFoundError) -> CliError:
+    """Report a failed import, naming the package whenever it can be recovered."""
+    name = err.name
+    if not name:
+        match = _PACKAGE_IN_MESSAGE.search(str(err))
+        name = next(filter(None, match.groups()), None) if match else None
+    if not name:
+        return CliError(code="missing_dependency", message=str(err))
+    return CliError(
+        code="missing_dependency",
+        message=f"missing package: {name}",
+        hint=f"uv pip install {name}",
+    )
+
+
 def handle_errors(func):
     """Decorate a command: CliError and unexpected errors -> contract output."""
 
@@ -88,11 +109,7 @@ def handle_errors(func):
             _emit(err)
             raise typer.Exit(err.exit_code) from None
         except ModuleNotFoundError as err:
-            cli_err = CliError(
-                code="missing_dependency",
-                message=f"missing package: {err.name}",
-                hint=f"uv pip install {err.name}",
-            )
+            cli_err = _missing_module(err)
             _emit(cli_err)
             raise typer.Exit(cli_err.exit_code) from None
         except Exception as err:  # noqa: BLE001 - the documented catch-all
