@@ -41,6 +41,8 @@ in 0.0.1, reaching about 40% of the registry; it now dispatches on 8, reaching
 - `data split --cv` writes one train/test file pair per cross-validation fold
   plus a fold manifest, using any of the registry's 15 splitters.
 - `datasets describe --no-load` answers from tag metadata without loading.
+- A user guide page for `metrics`, `check` and `catalogues`, which had no guide
+  coverage beyond the generated CLI reference.
 - `datasets load` writes panel datasets in formats other than `.ts`, putting
   the labels in a companion `_y` file.
 - CI now runs a matrix over sktime versions (the declared floor and the newest

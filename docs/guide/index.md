@@ -16,6 +16,10 @@ read the one that matches what you're doing.
 : Spec strings, pipelines and ensembles, parameter overrides, saved model
   artifacts, and backtesting with `run evaluate`.
 
+[Scoring, checking, and catalogues](scoring.md)
+: Score predictions against observations, validate an object against sktime's
+  API contract, and browse the benchmark catalogues sktime ships.
+
 [Output formats and errors](output.md)
 : The five output formats, the stdout and stderr split, the structured error
   record, and the exit code table.
@@ -30,6 +34,7 @@ read the one that matches what you're doing.
 discovery
 data
 modeling
+scoring
 output
 agents
 ```
