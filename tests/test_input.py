@@ -27,16 +27,29 @@ def test_multiple_id_cols_read_as_hierarchical(hierarchical_csv):
     assert inp.obj.index.nlevels == 3
 
 
-def test_long_defaults_use_the_first_columns(long_panel_csv):
-    """Without --id-col/--time-col the first two columns are id and time."""
-    inp = _input.load(str(long_panel_csv), ReadOptions(long=True))
-    assert inp.kind == "panel"
-    assert inp.obj.index.names == ["inst", "time"]
+def test_long_refuses_to_guess_the_id_column(long_panel_csv):
+    """Guessing turned a value column into the instance id, one per row."""
+    with pytest.raises(CliError) as excinfo:
+        _input.load(str(long_panel_csv), ReadOptions(long=True))
+    assert excinfo.value.code == "usage"
+    assert "--id-col" in excinfo.value.message
+    assert "--time-col" in excinfo.value.message
+    # the hint has to say what the file actually offers
+    assert "inst" in excinfo.value.hint
+
+
+def test_long_names_one_missing_flag_only(long_panel_csv):
+    with pytest.raises(CliError) as excinfo:
+        _input.load(str(long_panel_csv), ReadOptions(long=True, id_col="inst"))
+    assert "--time-col" in excinfo.value.message
+    assert "--id-col" not in excinfo.value.message
 
 
 def test_missing_long_column_names_the_available_ones(long_panel_csv):
     with pytest.raises(CliError) as excinfo:
-        _input.load(str(long_panel_csv), ReadOptions(long=True, id_col="nope"))
+        _input.load(
+            str(long_panel_csv), ReadOptions(long=True, id_col="nope", time_col="time")
+        )
     assert excinfo.value.code == "not_found"
     assert "inst" in excinfo.value.hint
 

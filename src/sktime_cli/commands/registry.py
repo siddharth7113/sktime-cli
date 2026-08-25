@@ -176,6 +176,8 @@ def search(
     fmt = resolve_format(format_, json_)
     if scitype:
         _validate_scitype(scitype)
+    if limit is not None and limit < 1:
+        raise CliError("usage", f"--limit must be 1 or more, got {limit}")
     filters = _parse_tag_filters(filter_tag)
     extra_tags = [t.strip() for t in with_tags.split(",")] if with_tags else []
     _validate_tags([*filters, *extra_tags], scitype)
@@ -227,10 +229,17 @@ def describe(
     fmt = resolve_format(format_, json_)
     record = _cache.lookup(name)
     if record is None:
+        close = difflib.get_close_matches(
+            name, [r["name"] for r in _cache.get_registry()], n=3
+        )
         raise CliError(
             "not_found",
             f"unknown object: {name}",
-            hint="search with: sktime-cli registry search -n " + name,
+            hint=(
+                f"did you mean: {', '.join(close)}"
+                if close
+                else f"search with: sktime-cli registry search -n {name}"
+            ),
         )
 
     defaults = record["param_defaults"]

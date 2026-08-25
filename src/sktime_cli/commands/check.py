@@ -114,6 +114,15 @@ def check(
         raise from_module_not_found(err, "the contract checks") from err
 
     rows = _rows(results)
+    if not rows:
+        raise CliError(
+            "usage",
+            "no checks matched",
+            hint=(
+                "--tests and --exclude take sktime test names such as "
+                "test_constructor or test_fit_idempotent; omit --tests to run all"
+            ),
+        )
     failed = [row for row in rows if row["status"] == "fail"]
     shown = failed if failed_only else rows
 

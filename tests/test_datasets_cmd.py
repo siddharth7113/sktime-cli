@@ -157,4 +157,6 @@ def test_split_that_does_not_exist_lists_the_parts(invoke, tmp_path):
         "--json",
     )
     assert result.exit_code == 2
-    assert "available parts" in json.loads(result.stderr)["error"]["hint"]
+    error = json.loads(result.stderr)["error"]
+    assert "without --split" in error["hint"]
+    assert "available parts" in error["detail"]

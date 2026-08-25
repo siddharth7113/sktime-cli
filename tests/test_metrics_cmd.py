@@ -157,4 +157,22 @@ def test_non_overlapping_indexes_are_a_data_error(invoke, scored_pair, tmp_path)
         "metrics", "score", "--true", scored_pair["test"], "--pred", bogus, "--json"
     )
     assert result.exit_code == 5
-    assert "overlap" in json.loads(result.stderr)["error"]["message"]
+    error = json.loads(result.stderr)["error"]
+    assert "different periods" in error["message"]
+    assert "data split" in error["hint"]
+
+
+def test_equal_length_but_different_periods_is_rejected(invoke, scored_pair, tmp_path):
+    """Equal lengths are not equal periods; scoring them positionally is nonsense."""
+    import pandas as pd
+
+    truth = pd.read_csv(scored_pair["test"])
+    shifted = tmp_path / "shifted.csv"
+    truth.assign(**{truth.columns[0]: range(9000, 9000 + len(truth))}).to_csv(
+        shifted, index=False
+    )
+    result = invoke(
+        "metrics", "score", "--true", shifted, "--pred", scored_pair["pred"], "--json"
+    )
+    assert result.exit_code == 5
+    assert "different periods" in json.loads(result.stderr)["error"]["message"]

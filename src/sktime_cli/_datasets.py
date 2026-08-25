@@ -280,8 +280,9 @@ def _load_object(name: str, split: str | None) -> dict[str, Any]:
         if missing:
             raise CliError(
                 "usage",
-                f"dataset {name} has no {split} split",
-                hint=f"available parts: {', '.join(keys)}",
+                f"dataset {name} defines no {split} split",
+                hint="load it without --split to get the whole dataset",
+                detail=f"available parts: {', '.join(keys)}",
             )
         X, y = dataset.load(*wanted)
     else:

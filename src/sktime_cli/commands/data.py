@@ -26,7 +26,7 @@ INPUT_OPTS = {
         None, "--freq", help="Pandas frequency for the index, e.g. M, D."
     ),
     "long": typer.Option(
-        False, "--long", help="Long-format panel: needs --id-col/--time-col."
+        False, "--long", help="Long-format panel; requires --id-col and --time-col."
     ),
     "id_col": typer.Option(None, "--id-col", help="Instance id column (long format)."),
     "time_col": typer.Option(None, "--time-col", help="Time column (long format)."),
@@ -235,7 +235,22 @@ def split(
         "train_size": _io.parse_size(train_size),
         "fh": _io.parse_fh(fh) if fh else None,
     }
+    for flag, value in (
+        ("--test-size", kwargs["test_size"]),
+        ("--train-size", kwargs["train_size"]),
+    ):
+        _check_size(flag, value, len(y))
     if X is not None:
+        if not len(y.index.intersection(X.index)):
+            raise CliError(
+                "data_error",
+                "the --exog file does not cover the same index as the input series",
+                hint="both files must span the same periods",
+                detail=(
+                    f"{path.name} spans {y.index[0]}..{y.index[-1]}, "
+                    f"{exog.name} spans {X.index[0]}..{X.index[-1]}"
+                ),
+            )
         y_train, y_test, X_train, X_test = temporal_train_test_split(y, X=X, **kwargs)
     else:
         y_train, y_test = temporal_train_test_split(y, **kwargs)
@@ -259,6 +274,47 @@ def split(
         record["exog_test"] = str(x_test_out)
     record["files"] = files
     emit_record(record, fmt, quiet_value=f"{train_out} {test_out}")
+
+
+def _check_size(flag: str, value, n_obs: int) -> None:
+    """Reject a split size that cannot produce two non-empty parts.
+
+    ``temporal_train_test_split`` accepts a size larger than the series and a
+    negative one, writing an empty train file at exit 0 either way, which is
+    silent data loss rather than a split.
+
+    Parameters
+    ----------
+    flag : str
+        The option being checked, named in the error.
+    value : int, float or None
+        The parsed size. ``None`` means the option was not given.
+    n_obs : int
+        Length of the series being split.
+
+    Raises
+    ------
+    CliError
+        ``usage`` when the size is not a positive count inside the series, or
+        not a fraction strictly between 0 and 1.
+    """
+    if value is None:
+        return
+    if isinstance(value, float):
+        if not 0 < value < 1:
+            raise CliError(
+                "usage",
+                f"{flag} as a fraction must be between 0 and 1, got {value}",
+            )
+        return
+    if value < 1:
+        raise CliError("usage", f"{flag} must be 1 or more, got {value}")
+    if value >= n_obs:
+        raise CliError(
+            "usage",
+            f"{flag} is {value} but the series has only {n_obs} observations",
+            hint="leave room for both parts, or pass a fraction such as 0.2",
+        )
 
 
 def _emit_folds(y, cv: str, path: Path, train_out, test_out, fmt: OutputFormat) -> None:

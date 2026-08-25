@@ -67,8 +67,8 @@ Builtin dataset ids are sktime's own names (`gun_point`, `arrow_head`,
 
 Own data conventions: wide CSV = first column is the time index (override
 `--index-col`, force frequency with `--freq M`); a single value column becomes
-a univariate series. Panels (classification) use `.ts` files. Long panel CSV:
-`--long --id-col <instance> --time-col <time>`. JSON files use pandas "split"
+a univariate series. Panels (classification) use `.ts` files. Long panel CSV: `--long --id-col <instance> --time-col <time>`. Both flags
+are required, because guessing the id column corrupts the data silently. JSON files use pandas "split"
 orient. Convert between them with `sktime-cli data convert`.
 
 ## Task: forecasting end-to-end

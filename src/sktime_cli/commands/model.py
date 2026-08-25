@@ -32,7 +32,13 @@ def inspect(
     est = load_model(path)
     spec = str(est)
     if spec_only:
-        print(spec)
+        # --spec exists to be captured, so it stays bare in every format that a
+        # shell reads. Only --json owes a document, and its contract requires
+        # one, so there it is an object rather than a naked string.
+        if fmt == OutputFormat.json:
+            emit_record({"spec": spec}, fmt, quiet_value=spec)
+        else:
+            print(spec)
         return
 
     record = {

@@ -87,8 +87,12 @@ def score(
     train: Path | None = typer.Option(
         None, "--train", help="Training series, for metrics that need y_train."
     ),
-    index_col: str = typer.Option("auto", "--index-col"),
-    freq: str | None = typer.Option(None, "--freq"),
+    index_col: str = typer.Option(
+        "auto", "--index-col", help="Time index column in the input files."
+    ),
+    freq: str | None = typer.Option(
+        None, "--freq", help="Pandas frequency for the index, e.g. M."
+    ),
     format_: OutputFormat = FORMAT_OPT,
     json_: bool = JSON_OPT,
 ) -> None:
@@ -161,17 +165,21 @@ def _align(y_true, y_pred):
         y_true = y_true.iloc[:, 0]
     if isinstance(y_pred, pd.DataFrame) and y_pred.shape[1] == 1:
         y_pred = y_pred.iloc[:, 0]
-    if len(y_true) == len(y_pred):
-        return y_true, y_pred
-
     common = y_true.index.intersection(y_pred.index)
     if len(common) == 0:
+        # equal lengths are not equal periods: scoring a 1949 series against a
+        # 1961 forecast positionally returns a plausible number for nonsense
         raise CliError(
             "data_error",
-            f"--true has {len(y_true)} rows and --pred has {len(y_pred)}, "
-            "and their indexes do not overlap",
+            "--true and --pred cover different periods, so they cannot be compared",
             hint="score the same horizon, e.g. the test split from: data split",
+            detail=(
+                f"--true spans {y_true.index[0]}..{y_true.index[-1]}, "
+                f"--pred spans {y_pred.index[0]}..{y_pred.index[-1]}"
+            ),
         )
+    if len(y_true) == len(y_pred) and len(common) == len(y_true):
+        return y_true, y_pred
     return y_true.loc[common], y_pred.loc[common]
 
 

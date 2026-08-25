@@ -235,3 +235,203 @@ def test_panel_round_trips_through_the_suggested_conversion(
     )
     assert back.exit_code == 0, back.output
     assert json.loads(back.stdout)["mtype"] == "pd-multiindex"
+
+
+# --------------------------------------------------------------------------
+# high-severity findings from the adversarial pass
+
+
+def test_builtin_classification_dataset_trains_a_classifier(invoke, tmp_path):
+    """nested_univ panels have a flat index; classifying by index depth broke them."""
+    result = invoke(
+        "run",
+        "fit",
+        "DummyClassifier()",
+        "--data",
+        "arrow_head",
+        "--model-out",
+        tmp_path / "c.zip",
+        "--json",
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["scitype"] == "classifier"
+    assert payload["n_obs"] == 211
+
+
+def test_nested_panel_is_recognised_as_a_panel():
+    """The scitype comes from sktime, not from counting index levels."""
+    from sktime_cli import _datasets, _input
+
+    X = _datasets.load("object", "arrow_head")["X"]
+    assert X.index.nlevels == 1  # a Panel with a flat index
+    assert _input._kind_of(X) == "panel"
+
+
+def test_forecasting_dataset_is_still_a_series():
+    from sktime_cli import _datasets, _input
+
+    y = _datasets.load("object", "airline")["y"]
+    assert _input._kind_of(y) == "series"
+
+
+# --------------------------------------------------------------------------
+# medium findings from the adversarial pass
+
+
+def test_probabilistic_flag_on_a_classifier_is_rejected(invoke, unit_test_ts, tmp_path):
+    """Asking for intervals and silently receiving labels is undetectable."""
+    model = tmp_path / "clf.zip"
+    invoke(
+        "run",
+        "fit",
+        "DummyClassifier()",
+        "--data",
+        unit_test_ts,
+        "--model-out",
+        model,
+        "--json",
+    )
+    result = invoke(
+        "run",
+        "predict",
+        "--model",
+        model,
+        "--data",
+        unit_test_ts,
+        "--interval",
+        "0.8",
+        "--json",
+    )
+    assert result.exit_code == 2
+    assert "forecasters" in json.loads(result.stderr)["error"]["message"]
+
+
+def test_proba_on_a_forecaster_is_rejected(invoke, fitted_naive):
+    result = invoke(
+        "run", "predict", "--model", fitted_naive, "--fh", "1", "--proba", "--json"
+    )
+    assert result.exit_code == 2
+    assert "classifiers" in json.loads(result.stderr)["error"]["message"]
+
+
+def test_detector_kind_hint_names_a_kind_that_works(invoke, airline_csv):
+    """The hint used to recommend --kind points, which also crashed."""
+    result = invoke(
+        "run",
+        "detect",
+        "ClusterSegmenter()",
+        "--data",
+        airline_csv,
+        "--kind",
+        "points",
+        "--json",
+    )
+    assert result.exit_code == 2
+    hint = json.loads(result.stderr)["error"]["hint"]
+    assert "segments" in hint
+    works = invoke(
+        "run",
+        "detect",
+        "ClusterSegmenter()",
+        "--data",
+        airline_csv,
+        "--kind",
+        "segments",
+        "--json",
+    )
+    assert works.exit_code == 0, works.output
+
+
+def test_spec_stays_bare_for_shell_capture(invoke, fitted_naive):
+    """`spec=$(... --spec)` is a documented idiom; piping makes it agent format."""
+    assert invoke("model", "inspect", fitted_naive, "--spec").stdout.strip() == (
+        "NaiveForecaster(sp=12)"
+    )
+
+
+def test_spec_is_a_document_under_json(invoke, fitted_naive):
+    result = invoke("model", "inspect", fitted_naive, "--spec", "--json")
+    assert json.loads(result.stdout) == {"spec": "NaiveForecaster(sp=12)"}
+
+
+def test_model_inspect_on_a_non_model_names_the_file_given(invoke, airline_csv):
+    result = invoke("model", "inspect", airline_csv, "--json")
+    assert result.exit_code == 4
+    error = json.loads(result.stderr)["error"]
+    assert "is not a model artifact" in error["message"]
+    assert ".zip" not in error["message"]
+
+
+def test_empty_and_malformed_csv_are_data_errors(invoke, tmp_path):
+    empty = tmp_path / "empty.csv"
+    empty.write_text("")
+    assert invoke("data", "inspect", empty, "--json").exit_code == 5
+
+    malformed = tmp_path / "bad.csv"
+    malformed.write_text('a,b\n1,"unclosed\n')
+    result = invoke("data", "inspect", malformed, "--json")
+    assert result.exit_code == 5
+    assert json.loads(result.stderr)["error"]["code"] == "data_error"
+
+
+def test_series_cannot_be_written_as_ts(invoke, airline_csv, tmp_path):
+    result = invoke("data", "convert", airline_csv, "-o", tmp_path / "a.ts", "--json")
+    assert result.exit_code == 2
+    assert "panel data" in json.loads(result.stderr)["error"]["message"]
+
+
+def test_split_sizes_outside_the_series_are_rejected(invoke, airline_csv, tmp_path):
+    import shutil
+
+    data = tmp_path / "airline.csv"
+    shutil.copy(airline_csv, data)
+    big = invoke("data", "split", data, "--test-size", "500", "--json")
+    assert big.exit_code == 2
+    assert "144 observations" in json.loads(big.stderr)["error"]["message"]
+
+    negative = invoke("data", "split", data, "--test-size", "-3", "--json")
+    assert negative.exit_code == 2
+
+
+def test_limit_below_one_is_rejected(invoke):
+    for value in ("0", "-5"):
+        result = invoke("registry", "search", "forecaster", "--limit", value, "--json")
+        assert result.exit_code == 2, value
+
+
+def test_forecasting_metric_on_a_classifier_is_rejected(invoke, unit_test_ts):
+    result = invoke(
+        "run",
+        "evaluate",
+        "DummyClassifier()",
+        "--data",
+        unit_test_ts,
+        "--cv",
+        "KFold(n_splits=3)",
+        "--metric",
+        "MeanAbsoluteError",
+        "--json",
+    )
+    assert result.exit_code == 4
+    assert "sklearn.metrics" in json.loads(result.stderr)["error"]["hint"]
+
+
+def test_check_with_a_test_filter_matching_nothing_is_an_error(invoke):
+    result = invoke("check", "NaiveForecaster", "--tests", "no_such_test", "--json")
+    assert result.exit_code == 2
+    assert "no checks matched" in json.loads(result.stderr)["error"]["message"]
+
+
+def test_transform_without_a_source_says_what_to_pass(invoke, airline_csv):
+    result = invoke("run", "transform", "--data", airline_csv, "--json")
+    assert result.exit_code == 2
+    error = json.loads(result.stderr)["error"]
+    assert "not both" not in error["message"]
+    assert "--model" in error["message"]
+
+
+def test_unknown_estimator_suggests_close_matches(invoke):
+    result = invoke("registry", "describe", "NaiveForecast", "--json")
+    assert result.exit_code == 4
+    assert "NaiveForecaster" in json.loads(result.stderr)["error"]["hint"]

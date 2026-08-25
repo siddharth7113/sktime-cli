@@ -58,11 +58,18 @@ def load_model(path: str | Path):
     """
     from sktime.base import load
 
-    path = Path(path)
-    if path.suffix != ".zip":
-        path = path.with_suffix(path.suffix + ".zip")
+    given = Path(path)
+    path = given if given.suffix == ".zip" else given.with_suffix(given.suffix + ".zip")
     if not path.exists():
-        raise CliError("not_found", f"model file not found: {path}")
+        if given.exists():
+            # naming a file that exists but is not an artifact should say so,
+            # not send the user hunting for a .zip they never referenced
+            raise CliError(
+                "not_found",
+                f"{given} is not a model artifact",
+                hint="pass a .zip written by: sktime-cli run fit --model-out",
+            )
+        raise CliError("not_found", f"model file not found: {given}")
     try:
         return load(path)
     except Exception as err:

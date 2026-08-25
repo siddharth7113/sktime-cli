@@ -39,7 +39,7 @@ INDEX_COL_OPT = typer.Option(
 )
 FREQ_OPT = typer.Option(None, "--freq", help="Pandas frequency for the index, e.g. M.")
 LONG_OPT = typer.Option(
-    False, "--long", help="Long-format panel: needs --id-col/--time-col."
+    False, "--long", help="Long-format panel; requires --id-col and --time-col."
 )
 ID_COL_OPT = typer.Option(
     None, "--id-col", help="Instance id column(s), comma-separated (long format)."
@@ -190,7 +190,10 @@ def _fit_panel(est, inp: Input):
         raise CliError(
             "data_error",
             "training data has no labels",
-            hint="use a .ts file with class labels, or pass --target",
+            hint=(
+                "labels have to come with the data: use a .ts file that carries "
+                "them, or a named classification dataset"
+            ),
         )
     est.fit(X, y) if y is not None else est.fit(X)
     return len(X), {}
@@ -318,6 +321,12 @@ def _predict_panel(est, X, proba: bool):
     return pd.Series(est.predict(X), name="prediction")
 
 
+def _detector_kind(est) -> str:
+    """Return the result kind a detector's ``task`` tag implies."""
+    task = str(est.get_tag("task", "segmentation", raise_error=False))
+    return "segments" if "segment" in task else "points"
+
+
 def _detector_result(est, X, kind: str):
     """Run the detector method that ``--kind`` asked for.
 
@@ -341,26 +350,35 @@ def _detector_result(est, X, kind: str):
     Raises
     ------
     CliError
-        ``usage`` for a kind that is not one of the three.
+        ``usage`` for an unknown kind, or for one this detector cannot produce.
+        Detectors signal that inconsistently, by raising ``NotImplementedError``
+        from the base class or ``AttributeError`` while converting a result they
+        never built, so both are treated as "cannot".
     """
+    if kind not in ("auto", "points", "segments", "scores"):
+        raise CliError(
+            "usage", f"invalid --kind {kind!r}: use auto|points|segments|scores"
+        )
+    native = _detector_kind(est)
     if kind == "auto":
-        task = str(est.get_tag("task", "segmentation", raise_error=False))
-        kind = "segments" if "segment" in task else "points"
-    if kind not in ("points", "segments", "scores"):
-        raise CliError("usage", f"invalid --kind {kind!r}: use points|segments|scores")
+        kind = native
     try:
         if kind == "points":
             return _frames.to_frame(est.predict_points(X), name="point"), kind
         if kind == "segments":
             return _frames.segments_to_frame(est.predict_segments(X)), kind
         return _frames.to_frame(est.predict_scores(X), name="score"), kind
-    except NotImplementedError as err:
-        # the base class raises this for a method the detector never defined
+    except (NotImplementedError, AttributeError) as err:
+        hint = (
+            f"this detector reports {native}: use --kind {native}"
+            if native != kind
+            else "try --kind segments or --kind points"
+        )
         raise CliError(
             "usage",
             f"{type(est).__name__} cannot report {kind}",
-            hint="try --kind points or --kind segments",
-            detail=str(err),
+            hint=hint,
+            detail=f"{type(err).__name__}: {err}",
         ) from err
 
 
@@ -528,6 +546,12 @@ def predict(
     loaded = _input.load(data, opts) if data else None
 
     if handler == "forecaster":
+        if proba:
+            raise CliError(
+                "usage",
+                "--proba applies to classifiers, not forecasters",
+                hint="for forecast uncertainty use --interval, --quantiles or --var",
+            )
         mode = _proba_mode(interval, quantiles, var, residuals)
         if mode == "residuals":
             if loaded is None:
@@ -547,6 +571,13 @@ def predict(
 
     if loaded is None:
         raise CliError("usage", "predict needs --data with the input data")
+    forecast_only = _proba_mode(interval, quantiles, var, residuals)
+    if forecast_only != "point":
+        raise CliError(
+            "usage",
+            f"--{forecast_only} applies to forecasters, not {handler}s",
+            hint="for class probabilities use --proba",
+        )
     if handler == "panel":
         result = _predict_panel(est, loaded.obj, proba)
     elif handler == "transformer":
@@ -600,6 +631,12 @@ def fit_predict(
 
         pred = pd.Series(est.fit_predict(inp.obj, inp.labels), name="prediction")
     elif handler == "transformer":
+        if fh:
+            raise CliError(
+                "usage",
+                "transformers have no forecasting horizon, so --fh does not apply",
+                hint="drop --fh, or use: sktime-cli run transform",
+            )
         pred = _frames.to_frame(est.fit_transform(inp.obj, inp.labels))
     else:  # detector
         est.fit(inp.obj)
@@ -640,8 +677,14 @@ def transform(
 ) -> None:
     """Transform data with a transformer spec or a saved fitted transformer."""
     fmt = resolve_format(format_, json_)
-    if (spec is None) == (model is None):
-        raise CliError("usage", "pass either a transformer spec or --model, not both")
+    if spec is None and model is None:
+        raise CliError(
+            "usage",
+            "pass a transformer spec, or --model with a fitted one",
+            hint='e.g. run transform "Detrender()" --data FILE',
+        )
+    if spec is not None and model is not None:
+        raise CliError("usage", "pass a transformer spec or --model, not both")
 
     est = load_model(model) if model is not None else build_estimator(spec, set_)
     scitype = estimator_scitype(est)
@@ -704,8 +747,14 @@ def detect(
 ) -> None:
     """Detect anomalies, change points, or segments in a series."""
     fmt = resolve_format(format_, json_)
-    if (spec is None) == (model is None):
-        raise CliError("usage", "pass either a detector spec or --model, not both")
+    if spec is None and model is None:
+        raise CliError(
+            "usage",
+            "pass a detector spec, or --model with a fitted one",
+            hint='e.g. run detect "HampelDetector()" --data FILE',
+        )
+    if spec is not None and model is not None:
+        raise CliError("usage", "pass a detector spec or --model, not both")
 
     est = load_model(model) if model is not None else build_estimator(spec, set_)
     scitype = estimator_scitype(est)
@@ -906,7 +955,10 @@ def _evaluate_panel(est, inp, scitype: str, cv, metric):
         raise CliError(
             "data_error",
             "evaluate needs labelled Panel data",
-            hint="use a .ts file with class labels, or a classification dataset",
+            hint=(
+                "labels have to come with the data: use a .ts file that carries "
+                "them, or a named classification dataset"
+            ),
         )
     kwargs = {
         arg_name: est,
@@ -924,8 +976,9 @@ def _evaluate_panel(est, inp, scitype: str, cv, metric):
 def _resolve_panel_metric(name: str):
     """Resolve a metric for panel evaluation.
 
-    sklearn is tried first, since panel scoring is scored per instance and
-    that is where those metrics live, falling back to sktime's registry.
+    Panel results are scored per instance, so these are sklearn's metrics.
+    sktime's own metric objects are for forecasting and cannot score labels;
+    passing one used to crash inside sktime, so it is refused here.
 
     Parameters
     ----------
@@ -935,19 +988,27 @@ def _resolve_panel_metric(name: str):
     Returns
     -------
     callable
-        The metric.
+        The metric function.
 
     Raises
     ------
     CliError
-        ``not_found`` if neither source has it.
+        ``not_found`` naming sklearn.metrics as the place these come from.
     """
     import sklearn.metrics
 
     func = getattr(sklearn.metrics, name, None)
     if callable(func):
         return func
-    return resolve_metric(name)
+    from sktime_cli import _cache
+
+    record = _cache.lookup(name)
+    hint = "classifier and regressor metrics come from sklearn.metrics, "
+    if record is not None:
+        hint += f"but {name} is an sktime forecasting metric"
+    else:
+        hint += "e.g. accuracy_score, f1_score, r2_score"
+    raise CliError("not_found", f"unknown metric for this estimator: {name}", hint=hint)
 
 
 def _resolve_panel_cv(cv: str | None):

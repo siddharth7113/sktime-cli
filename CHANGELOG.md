@@ -132,6 +132,46 @@ in 0.0.1, reaching about 40% of the registry; it now dispatches on 8, reaching
   contract as every other failure.
 - An explicit `--format human` was ignored when deciding how to render an
   error, so redirecting human output to a file produced JSON errors.
+- **Every builtin classification dataset was unusable with `run`.** sktime
+  returns them as `nested_univ` panels, which have a flat index, and the input
+  layer classified scitype by counting index levels, so `run fit
+  "DummyClassifier()" --data arrow_head` was rejected as "a single series".
+  The scitype now comes from sktime rather than from the index shape.
+- `metrics score` compared positionally whenever the two files had the same
+  number of rows, so scoring a 1949 series against a 1961 forecast returned a
+  plausible number at exit 0. The periods must now overlap.
+- `--long` guessed the id and time columns when they were not named, which
+  turned a value column into the instance id and produced one instance per row.
+  Both flags are now required, as the help always said.
+- A probabilistic flag aimed at the wrong kind of estimator was silently
+  ignored: `--interval` on a classifier returned point labels at exit 0, and
+  `--proba` on a forecaster returned a point forecast. Both are now errors.
+- `run detect --kind points` crashed on segmenters with an `AttributeError`,
+  and the error for `--kind scores` recommended exactly that command.
+- `model inspect --spec --json` printed a bare string, breaking the promise of
+  one JSON document. It is now `{"spec": "..."}` under `--json` and stays bare
+  in every other format, so `spec=$(... --spec)` still works.
+- `model inspect` on a file that exists but is not an artifact reported a
+  `.zip` path the user never typed.
+- An empty or malformed CSV was reported as `internal` at exit 1 rather than
+  `data_error` at exit 5.
+- Writing a single series to `.ts` leaked a raw sktime `TypeError`; `.ts` holds
+  panels, and now says so.
+- `data split` accepted a test size larger than the series, and negative sizes,
+  writing an empty train file at exit 0.
+- `registry search --limit 0` returned every row and a negative limit returned
+  one; both are now usage errors.
+- `run evaluate` on a classifier accepted an sktime forecasting metric and
+  crashed inside sktime. Panel metrics come from `sklearn.metrics`, and the
+  error now says so.
+- `check --tests` with a name that matches nothing reported a clean pass.
+- `data split --exog` with a non-overlapping index dumped a raw pandas
+  `KeyError`.
+- `run transform` and `run detect` said "not both" when the user had passed
+  neither a spec nor `--model`.
+- `run fit-predict` silently ignored `--fh` when given a transformer.
+- `registry describe` gave no close-match suggestion for an unknown name, while
+  `datasets describe` did.
 - Documentation fixes found by running every example: the `scitype:y` tag
   filter (no forecaster carries it), the `--set forecaster__sp` key (steps are
   named after their class), the `StratifiedKFold` backtest example (sktime does

@@ -75,7 +75,17 @@ def _read_tabular(path: Path, input_format: str | None):
 
     suffix = (input_format or path.suffix.lstrip(".")).lower()
     if suffix == "csv":
-        return pd.read_csv(path)
+        try:
+            return pd.read_csv(path)
+        except pd.errors.EmptyDataError as err:
+            raise CliError("data_error", f"{path} is empty") from err
+        except pd.errors.ParserError as err:
+            raise CliError(
+                "data_error",
+                f"{path} is not valid CSV",
+                hint="check the file for unclosed quotes or ragged rows",
+                detail=str(err),
+            ) from err
     if suffix == "parquet":
         try:
             return pd.read_parquet(path)
@@ -269,12 +279,20 @@ def _read_long(df, id_col: str | None, time_col: str | None, freq: str | None):
         ``not_found`` if a named column is absent; the error lists the columns
         the file does have.
     """
-    id_cols = (
-        [c.strip() for c in id_col.split(",") if c.strip()]
-        if id_col
-        else [str(df.columns[0])]
-    )
-    time_col = time_col or str(df.columns[len(id_cols)])
+    if not id_col or not time_col:
+        # guessing here silently turned a float column into the instance id,
+        # producing one "instance" per row; the flags are cheap to state
+        missing = [
+            flag
+            for flag, value in (("--id-col", id_col), ("--time-col", time_col))
+            if not value
+        ]
+        raise CliError(
+            "usage",
+            f"--long needs {' and '.join(missing)}",
+            hint=f"columns in this file: {', '.join(map(str, df.columns))}",
+        )
+    id_cols = [c.strip() for c in id_col.split(",") if c.strip()]
     for col in [*id_cols, time_col]:
         if col not in df.columns:
             raise CliError(
@@ -432,6 +450,12 @@ def write_any(
             raise CliError("usage", "numpy arrays can only be written as .npy")
         np.save(path.with_suffix(".npy"), obj)
         return [str(path.with_suffix(".npy"))]
+    if suffix == "npy":
+        raise CliError(
+            "usage",
+            ".npy holds numpy arrays, and this data is a pandas object",
+            hint="convert it first, e.g. --to-mtype numpy3D",
+        )
 
     if isinstance(obj, pd.Series):
         obj = obj.to_frame()
@@ -516,6 +540,31 @@ def _reject_nested(obj, suffix: str) -> None:
         )
 
 
+def _require_panel_for_ts(X) -> None:
+    """Reject a Series where ``.ts`` requires a Panel.
+
+    sktime's ``.ts`` writer takes panels, and hands back a bare ``TypeError``
+    for anything else, which surfaced as an ``internal`` failure at exit 1.
+
+    Raises
+    ------
+    CliError
+        ``usage`` naming the formats that can hold a single series.
+    """
+    from sktime.datatypes import check_is_scitype
+
+    valid, _msg, meta = check_is_scitype(
+        X, ["Panel", "Hierarchical"], return_metadata=["scitype"]
+    )
+    if valid and meta.get("scitype") in ("Panel", "Hierarchical"):
+        return
+    raise CliError(
+        "usage",
+        ".ts holds panel data, not a single series",
+        hint="write a series as csv, parquet or json instead",
+    )
+
+
 def write_ts(X, path: Path, y=None) -> str:
     """Write a Panel, and optionally its labels, to one ``.ts`` file.
 
@@ -548,6 +597,7 @@ def write_ts(X, path: Path, y=None) -> str:
 
     from sktime.datasets import write_panel_to_tsfile
 
+    _require_panel_for_ts(X)
     path = Path(path)
     problem = path.stem or "data"
     with tempfile.TemporaryDirectory() as tmp:

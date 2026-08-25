@@ -262,8 +262,16 @@ def _load_dataset(data: str, exog: Path | None, opts: ReadOptions) -> Input:
     )
 
 
+_SCITYPE_KINDS = {"Series": "series", "Panel": "panel", "Hierarchical": "hierarchical"}
+
+
 def _kind_of(obj) -> str:
-    """Classify a pandas object's scitype from the depth of its index.
+    """Classify a pandas object's scitype, asking sktime rather than guessing.
+
+    Index depth alone is not enough: sktime's ``nested_univ`` mtype holds a
+    whole Series in each cell of a flat-indexed frame, so a Panel can arrive
+    with a single index level. Every builtin classification dataset is loaded
+    that way, and treating those as a single series made them unusable.
 
     Parameters
     ----------
@@ -273,10 +281,20 @@ def _kind_of(obj) -> str:
     Returns
     -------
     {"series", "panel", "hierarchical"}
-        ``series`` for a flat index, ``panel`` for two levels, and
-        ``hierarchical`` for more.
+        The scitype sktime recognises. Falls back to index depth if sktime
+        cannot classify the object at all, so an unrecognised container still
+        reaches the estimator and fails with sktime's own message.
     """
     import pandas as pd
+    from sktime.datatypes import check_is_scitype
+
+    valid, _msg, meta = check_is_scitype(
+        obj, list(_SCITYPE_KINDS), return_metadata=["scitype"]
+    )
+    if valid:
+        kind = _SCITYPE_KINDS.get(meta.get("scitype"))
+        if kind:
+            return kind
 
     index = getattr(obj, "index", None)
     if isinstance(index, pd.MultiIndex):
