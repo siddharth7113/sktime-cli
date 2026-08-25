@@ -65,6 +65,19 @@ in 0.0.1, reaching about 40% of the registry; it now dispatches on 8, reaching
   being duplicated in the source.
 - `--source objects` was removed from `datasets list`; dataset objects are the
   builtin catalogue, so `--source builtin` covers them.
+- **Breaking.** `datasets list --task` and the `task` field of `datasets
+  describe` use sktime's scitype names (`forecaster`, `classifier`,
+  `regressor`) rather than a separate vocabulary (`forecasting`,
+  `classification`, `regression`). This matches `registry search` and removes
+  a translation table.
+- `data inspect` reports every metadata field sktime computes, rather than a
+  fixed subset, so a field added upstream appears without a change here. The
+  metric and dataset scitype lists, the tags `datasets describe` surfaces, and
+  the module that cross-validates a panel estimator are likewise derived from
+  sktime rather than listed in this project.
+- Docstrings across the source tree follow the numpydoc convention the project
+  configures for ruff, with Parameters, Returns and Raises sections on the
+  functions that take or return anything non-obvious.
 
 ### Fixed
 
