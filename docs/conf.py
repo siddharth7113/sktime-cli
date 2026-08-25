@@ -34,7 +34,7 @@ exclude_patterns = ["_build", "assets/generate.py", "Thumbs.db", ".DS_Store"]
 myst_enable_extensions = ["colon_fence", "deflist", "substitution"]
 # Render ```mermaid fences through sphinxcontrib-mermaid.
 myst_fence_as_directive = ["mermaid"]
-myst_heading_anchors = 3
+myst_heading_anchors = 4
 
 # -- Copy buttons -----------------------------------------------------------
 

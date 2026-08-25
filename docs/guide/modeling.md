@@ -212,16 +212,33 @@ the predictions to a file instead of stdout, in the format the suffix names.
 
 ### Uncertainty around a forecast
 
-Four flags turn a point forecast into a probabilistic one:
+A point forecast says 417 passengers in January. It doesn't say whether the
+model means "417, give or take 5" or "417, give or take 200". Four flags on
+`run predict` answer that, and each answers a different question. They are
+mutually exclusive, so pass one at a time.
+
+`--interval`
+: How wide is the range the value probably falls in? Ask for a coverage, get
+  a lower and an upper bound.
+
+`--quantiles`
+: What value does the model put a given probability below? Ask for 0.1, get
+  the value the model thinks there is a 10% chance of undershooting.
+
+`--var`
+: How much variance does the model attach to each step?
+
+`--residuals`
+: How wrong was the model on data it has already seen?
+
+#### `--interval`: a range
+
+Coverage is the share of outcomes the range is meant to contain, so 0.8 is an
+80% interval. The flag takes one coverage or several:
 
 ```bash
 sktime-cli run predict --model model.zip --fh 1:12 --interval 0.8,0.95
-sktime-cli run predict --model model.zip --fh 1:12 --quantiles 0.1,0.9
-sktime-cli run predict --model model.zip --fh 1:12 --var
-sktime-cli run predict --model model.zip --data airline.csv --residuals
 ```
-
-The first of those, on the model fitted above:
 
 ```{code-block} text
 :caption: Output
@@ -236,23 +253,16 @@ The first of those, on the model fitted above:
  ...
 ```
 
-Two coverages produce four rows per timestamp, not four columns.
+Read the first four rows as one timestamp: January 1961 has an 80% interval of
+370 to 464, and a wider 95% interval of 346 to 488. Two coverages produce four
+rows per timestamp, not four columns. That matters, and the
+[shape](#the-shape-of-the-output) section explains why.
 
-They are mutually exclusive. sktime returns intervals and quantiles with
-MultiIndex columns, whose shape changes with the number of levels you ask for.
-The CLI flattens them to long form instead, so the columns are fixed:
+#### `--quantiles`: a value at a probability
 
-| flag | columns |
-| --- | --- |
-| `--interval` | `time`, `variable`, `coverage`, `bound`, `value` |
-| `--quantiles` | `time`, `variable`, `quantile`, `value` |
-| `--var` | `time`, `variable`, `value` |
-
-The first column is the time index, named `time` when the input had no index
-name. For panel input it is the index levels instead.
-
-`--quantiles` swaps the `coverage` and `bound` pair for a single `quantile`
-column:
+```bash
+sktime-cli run predict --model model.zip --fh 1:12 --quantiles 0.1,0.9
+```
 
 ```{code-block} text
 :caption: Output
@@ -265,7 +275,16 @@ column:
  ...
 ```
 
-and `--var` drops to one row per timestamp:
+The numbers match the 80% interval from the previous example, because
+quantiles 0.1 and 0.9 leave 10% of the distribution on each side. Use
+`--interval` for a symmetric range, and `--quantiles` for an asymmetric cut,
+such as a 0.95 upper bound with no lower bound at all.
+
+#### `--var`: variance per step
+
+```bash
+sktime-cli run predict --model model.zip --fh 1:12 --var
+```
 
 ```{code-block} text
 :caption: Output
@@ -276,20 +295,83 @@ and `--var` drops to one row per timestamp:
  ...
 ```
 
-Asking for three coverages instead of one adds rows, never columns, which is
-what makes the output safe to parse. Pass `--wide` if you want sktime's native
-layout instead, with the column levels joined by `__`.
+One row per timestamp. The variance is flat here because `NaiveForecaster`
+assumes the same spread at every horizon. A forecaster that grows less certain
+further out reports a variance that rises down the column.
 
-Not every forecaster can do this. The ones that can carry the
-`capability:pred_int` tag, and the others fail with a usage error that names
-it:
+#### `--residuals`: in-sample error
+
+Residuals score the model against data it was fitted on, so `--data` supplies
+that series rather than a horizon, and `--fh` does not apply:
+
+```bash
+sktime-cli run predict --model model.zip --data airline.csv --residuals
+```
+
+```{code-block} text
+:caption: Output
+
+ Period   Number of airline passengers
+ 1950-01                           3.0
+ 1950-02                           8.0
+ 1950-03                           9.0
+ 1950-04                           6.0
+ 1950-05                           4.0
+ ...
+```
+
+Use this to check whether the errors look like noise or like a pattern the
+model missed. It needs the `capability:insample` tag.
+
+#### The shape of the output
+
+sktime returns intervals and quantiles with MultiIndex columns, so the number
+of columns changes with the number of levels you ask for. Parsing that means
+rewriting your parser every time you add a coverage.
+
+The CLI flattens the result to long form instead. Asking for three coverages
+adds rows, never columns, so these column sets are fixed:
+
+| flag | columns |
+| --- | --- |
+| `--interval` | `time`, `variable`, `coverage`, `bound`, `value` |
+| `--quantiles` | `time`, `variable`, `quantile`, `value` |
+| `--var` | `time`, `variable`, `value` |
+
+The first column is the time index, named `time` when the input had no index
+name. For panel input it is the index levels instead.
+
+For sktime's native layout, pass `--wide`. The column levels are joined with
+`__`, and the column count then grows with what you ask for:
+
+```bash
+sktime-cli run predict --model model.zip --fh 1:3 --interval 0.8,0.95 --wide
+```
+
+```{code-block} text
+:caption: Output
+
+              Number of airline      Number of airline     Number of airline      Number of airline
+ index    passengers__0.8__low…  passengers__0.8__upp…  passengers__0.95__l…  passengers__0.95__up…
+ 1961-01     370.45950016906335     463.54049983093665     345.8224477706716      488.1775522293284
+ 1961-02     344.45950016906335     437.54049983093665     319.8224477706716      462.1775522293284
+ 1961-03     372.45950016906335     465.54049983093665     347.8224477706716      490.1775522293284
+```
+
+#### Forecasters that support it
+
+Probabilistic output needs the `capability:pred_int` tag. A forecaster without
+it fails with a usage error naming the tag, rather than an sktime traceback.
+To list the ones that have it and that you can already run:
 
 ```bash
 sktime-cli registry search forecaster -t capability:pred_int=True --installable-only
 ```
 
-To do both steps in one process, use `run fit-predict`. It takes the fit
-options plus `--output`, and forecasters require `--fh`:
+### Fit and predict in one step
+
+`run fit-predict` does both in one process. It takes the `run fit` options
+plus `--output`, and forecasters require `--fh`:
 
 ```bash
 sktime-cli run fit-predict "NaiveForecaster(sp=12)" \
@@ -325,19 +407,27 @@ n      144
 ```
 
 Pass `--model-out` to keep the fitted transformer, then reuse it on new data
-with `--model` instead of a spec. That distinction matters: refitting a
-transformer on new data would learn new parameters, while reloading applies
-the ones learned before.
+with `--model` in place of the spec:
 
 ```bash
+# fit on the training data, and keep what was fitted
 sktime-cli run transform "Differencer()" --data train.csv --model-out diff.zip -o out.csv
+
+# apply that same fitted transformer to the test data
 sktime-cli run transform --model diff.zip --data test.csv -o test_diff.csv
+
+# undo it
 sktime-cli run transform --model diff.zip --data test_diff.csv --inverse
 ```
 
+The difference between the first line and the second matters. A spec refits on
+whatever data you hand it, learning new parameters from that data. `--model`
+reloads the parameters learned earlier and applies them, which is what you
+want on test data.
+
 `--inverse` calls `inverse_transform`, which needs the
-`capability:inverse_transform` tag; transformers without it fail with a usage
-error rather than an sktime traceback.
+`capability:inverse_transform` tag. A transformer without it fails with a
+usage error rather than an sktime traceback.
 
 Reconcilers are transformers in sktime's class hierarchy, so hierarchical
 reconciliation runs through this command too.
