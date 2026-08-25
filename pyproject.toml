@@ -31,7 +31,7 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/sktime/sktime-cli"
+Repository = "https://github.com/siddharth7113/sktime-cli"
 
 [project.optional-dependencies]
 parquet = ["pyarrow>=14"]
