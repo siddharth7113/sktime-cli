@@ -22,29 +22,55 @@ fit / predict / evaluate workflows straight from your shell.
 
 ---
 
-## Why sktime-cli
+## Why a CLI
+
+sktime is a Python library, so trying a forecaster usually means opening an
+editor:
+
+```python
+import pandas as pd
+from sktime.forecasting.naive import NaiveForecaster
+
+y = pd.read_csv("airline.csv", index_col=0).squeeze()
+y.index = pd.PeriodIndex(y.index, freq="M")
+
+forecaster = NaiveForecaster(sp=12)
+forecaster.fit(y)
+print(forecaster.predict(fh=range(1, 13)))
+```
+
+The same forecast, from the shell:
+
+```bash
+sktime-cli run fit-predict "NaiveForecaster(sp=12)" --data airline.csv --fh 1:12
+```
+
+Both print the same twelve numbers. The difference is what you needed to know
+first: that `NaiveForecaster` lives in `sktime.forecasting.naive`, and that
+sktime wants a `PeriodIndex` rather than the strings the csv gave you. The
+CLI works both of those out for you, from the file and the estimator name.
+
+## What you get
 
 Every command is one process. It reads files or names, calls sktime, writes
-results, and exits with a meaningful code. No state is hidden in a session, so
-the same command behaves the same way in a shell, a Makefile, a CI job, or an
-AI agent.
+results, and exits with a meaningful code.
 
-- **Stateless commands.** No sessions, handles, daemons, or background jobs.
-  Fitted models are `.zip` files you can see with `ls`, and the rest of the
-  state lives under one cache directory, the same model the Hugging Face CLI
-  uses.
-- **Registry-native discovery.** `registry search` filters sktime's full
-  estimator registry by scitype and capability tag, served from a disk cache,
-  so repeat searches don't pay for the crawl again.
-- **Estimators named the way you write them.** Models are constructor
-  expressions: `"NaiveForecaster(sp=12)"`, with pipelines via `*`, ensembles
-  via `+`, and multiplexers via `|`.
-- **Many formats in, many formats out.** csv, parquet, json, `.ts`, `.tsf`,
-  and `.arff` go in. Every command reads
-  `--format human|agent|json|quiet` on the way out.
-- **Errors that name the fix.** One JSON document on stdout, structured errors
-  on stderr, stable exit codes, and a
-  [ready-to-use agent skill](https://github.com/siddharth7113/sktime-cli/blob/main/skills/sktime-cli/SKILL.md).
+- **Fitted models are ordinary files.** No sessions, handles, or daemons.
+  `run fit` writes a `.zip` you can copy, commit, or delete, and any later
+  command picks it up by path. Run something twice and you get the same
+  answer.
+- **Search for an estimator instead of looking one up.**
+  `registry search forecaster -t capability:missing_values=true` lists every
+  forecaster that handles gaps, marking the ones whose dependencies you
+  already have. Results come from a disk cache, so repeat searches are cheap.
+- **Name a model instead of building one.** `"NaiveForecaster(sp=12)"` is the
+  whole configuration. `*` composes a pipeline, `+` an ensemble, and `|` a
+  multiplexer, so `"Deseasonalizer() * NaiveForecaster()"` is a model too.
+- **Reads the files you already have.** csv, parquet, json, `.ts`, `.tsf`,
+  and `.arff` go in. `--format human|agent|json|quiet` comes out.
+- **Failures say what to do next.** A missing optional dependency exits `3`
+  with the install command in the error's `hint`. Nothing fails with a bare
+  traceback.
 
 ## Installation
 
@@ -118,8 +144,8 @@ usually contains the fix.
 | `5` | Data validation or spec error |
 
 The full agent contract and task recipes live in
-[skills/sktime-cli/SKILL.md](https://github.com/siddharth7113/sktime-cli/blob/main/skills/sktime-cli/SKILL.md). Copy the `skills/`
-directory into your agent's skill directory, such as `.claude/skills/`, and
+[skills/sktime-cli/SKILL.md](https://github.com/siddharth7113/sktime-cli/blob/main/skills/sktime-cli/SKILL.md).
+Copy the `skills/` directory into your agent's skill directory, such as `.claude/skills/`, and
 the agent knows how to drive the CLI. The same file ships inside the wheel.
 
 For the details, see

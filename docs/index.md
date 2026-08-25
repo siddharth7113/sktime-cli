@@ -79,9 +79,9 @@ teaches an agent to use the CLI.
 ## How it differs from a Python script
 
 Stateless commands
-: There are no sessions, handles, daemons, or background jobs. Fitted models
-  are `.zip` files that you can see with `ls`, and the rest of the state lives
-  under one cache directory. This is the same model the Hugging Face CLI uses.
+: There are no sessions, handles, daemons, or background jobs. A fitted model
+  is a `.zip` file you can copy, commit, or delete, and any later command
+  picks it up by path. Run a command twice and you get the same answer.
 
 Registry-native discovery
 : `registry search` filters sktime's full estimator registry by scitype and
