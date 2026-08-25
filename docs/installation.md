@@ -73,12 +73,6 @@ cd sktime-cli
 uv sync
 ```
 
-The `[tool.uv.sources]` table in `pyproject.toml` points sktime at a sibling
-checkout at `../sktime`, so `uv sync` expects to find one. If you don't have
-a local sktime clone, resolve sktime from PyPI instead:
-
-```bash
-uv sync --no-sources
-```
+This resolves sktime from PyPI, like any other dependency.
 
 For the full development workflow, see [Contributing](contributing/index.md).

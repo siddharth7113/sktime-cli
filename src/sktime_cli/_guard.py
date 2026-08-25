@@ -8,8 +8,10 @@ under ``typer.testing.CliRunner``.
 from __future__ import annotations
 
 import functools
+import os
 import sys
 import traceback
+from importlib.util import find_spec
 
 import typer
 
@@ -102,6 +104,52 @@ def _emit(err: CliError) -> None:
     print_error(err.to_dict(_command_path() or None), human=not _machine_errors())
 
 
+@functools.lru_cache(maxsize=1)
+def _sktime_root() -> str | None:
+    """Locate the directory sktime is imported from.
+
+    Returns
+    -------
+    str or None
+        The absolute, normalised path of sktime's package directory, or None
+        if sktime cannot be located.
+    """
+    try:
+        spec = find_spec("sktime")
+    except (ImportError, ValueError):
+        return None
+    if spec is None or not spec.origin:
+        return None
+    return os.path.normcase(os.path.dirname(os.path.abspath(spec.origin)))
+
+
+def _in_sktime(filename: str) -> bool:
+    """Report whether a traceback frame was raised from inside sktime.
+
+    Containment is tested against sktime's real package directory rather than
+    by looking for ``"sktime"`` in the path. A substring test misreads any
+    frame whose path merely passes through a directory named after sktime, and
+    installing the CLI under a directory called ``sktime_cli`` does exactly
+    that: every genuine sktime frame in the virtualenv below it then looks like
+    CLI code and gets reported as an internal bug.
+
+    Parameters
+    ----------
+    filename : str
+        A traceback frame's filename.
+
+    Returns
+    -------
+    bool
+        True when the frame lies inside sktime's package directory.
+    """
+    root = _sktime_root()
+    if root is None:
+        return False
+    path = os.path.normcase(os.path.abspath(filename))
+    return path == root or path.startswith(root + os.sep)
+
+
 def _classify(err: Exception) -> CliError:
     """Wrap an unexpected exception, attributing it to sktime or to the CLI.
 
@@ -122,10 +170,7 @@ def _classify(err: Exception) -> CliError:
         its message, and the file and line it was raised from.
     """
     frames = traceback.extract_tb(err.__traceback__)
-    from_sktime = any(
-        "sktime" in frame.filename and "sktime_cli" not in frame.filename
-        for frame in frames
-    )
+    from_sktime = any(_in_sktime(frame.filename) for frame in frames)
     where = frames[-1] if frames else None
     return CliError(
         code="sktime_error" if from_sktime else "internal",

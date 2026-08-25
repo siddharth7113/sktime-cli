@@ -14,9 +14,6 @@ sphinx:
 
 python:
   install:
-    # Installing with pip (not uv) is deliberate: [tool.uv.sources] points
-    # sktime at a sibling checkout that does not exist on Read the Docs, and
-    # pip ignores that table, so sktime resolves from PyPI.
     - method: pip
       path: .
       extra_requirements:
