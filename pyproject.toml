@@ -63,6 +63,13 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/sktime_cli"]
 
+# The skill is authored at the repo root, where skill indexers and
+# `npx skills add` look for it. The wheel also needs it at the path
+# package-bundled skills are discovered from, so copy it in at build time
+# rather than keeping two copies in git.
+[tool.hatch.build.targets.wheel.force-include]
+"skills/sktime-cli/SKILL.md" = "sktime_cli/.agents/skills/sktime-cli/SKILL.md"
+
 [tool.pytest.ini_options]
 addopts = "-m 'not network'"
 markers = ["network: tests that download data from the internet"]

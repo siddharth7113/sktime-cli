@@ -30,6 +30,32 @@ jobs:
       - name: Build the documentation
         run: uv run sphinx-build -b html -W docs docs/_build/html
 
+  # The skill is authored at the repo root and copied into the package by
+  # force-include. Only a real build proves that mapping still holds, so check
+  # the built wheel rather than trusting the config.
+  wheel:
+    name: Wheel carries the skill
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Build the wheel
+        run: uv build --wheel --out-dir dist
+      - name: Check the skill landed at the package-bundled path
+        run: |
+          python - <<'EOF'
+          import glob, sys, zipfile
+
+          wheel = sorted(glob.glob("dist/*.whl"))[-1]
+          expected = "sktime_cli/.agents/skills/sktime-cli/SKILL.md"
+          names = zipfile.ZipFile(wheel).namelist()
+          if expected not in names:
+              sys.exit(f"{wheel} is missing {expected}")
+          print(f"{wheel} carries {expected}")
+          EOF
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

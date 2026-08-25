@@ -6,6 +6,16 @@ releases may break the command surface while the design settles.
 
 ## Unreleased
 
+### Changed
+
+- The agent skill is now authored at `skills/sktime-cli/SKILL.md` in this
+  repository, instead of inside the package source tree. Skill indexers and
+  `npx skills add` walk a repository's skill directories from the root, so a
+  skill two levels down under `src/sktime_cli/` was invisible to all of them.
+  Installed users are unaffected: the wheel build copies the file to
+  `sktime_cli/.agents/skills/sktime-cli/SKILL.md`, the same path as before, so
+  `library-skills` still finds it and a CI job checks the built wheel for it.
+
 ### Fixed
 
 - `uv sync` in a clone of this repository installed sktime as an editable

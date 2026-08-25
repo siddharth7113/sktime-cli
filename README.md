@@ -153,8 +153,8 @@ usually contains the fix.
 ### Install the skill
 
 The full agent contract and task recipes live in an
-[agent skill](https://github.com/siddharth7113/sktime-cli/blob/main/src/sktime_cli/.agents/skills/sktime-cli/SKILL.md)
-that ships inside the package, at the location package-bundled skills use. Add
+[agent skill](https://github.com/siddharth7113/sktime-cli/blob/main/skills/sktime-cli/SKILL.md)
+that also ships inside the package, at the location package-bundled skills use. Add
 `sktime-cli` to the project, then let
 [library-skills](https://library-skills.io) find it:
 
@@ -168,11 +168,17 @@ That symlinks the skill into `.agents/skills/`, and `--claude` adds
 To skip the prompt, name it: `uvx library-skills --claude --skill sktime-cli`.
 
 If you installed the CLI as a standalone tool rather than as a project
-dependency, copy the file instead:
+dependency, pull the skill straight from this repository:
+
+```bash
+npx skills add siddharth7113/sktime-cli
+```
+
+Or copy the one file yourself:
 
 ```bash
 mkdir -p ~/.claude/skills/sktime-cli
-curl -fsSL https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/src/sktime_cli/.agents/skills/sktime-cli/SKILL.md \
+curl -fsSL https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/skills/sktime-cli/SKILL.md \
   -o ~/.claude/skills/sktime-cli/SKILL.md
 ```
 
