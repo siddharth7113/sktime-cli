@@ -64,8 +64,9 @@ results, and exits with a meaningful code.
   forecaster that handles gaps, marking the ones whose dependencies you
   already have. Results come from a disk cache, so repeat searches are cheap.
 - **Name a model instead of building one.** `"NaiveForecaster(sp=12)"` is the
-  whole configuration. `*` composes a pipeline, `+` an ensemble, and `|` a
-  multiplexer, so `"Deseasonalizer() * NaiveForecaster()"` is a model too.
+  whole configuration. `*` composes a pipeline, `|` a multiplexer, and `+`
+  a transformer union, so `"Deseasonalizer() * NaiveForecaster()"` is a
+  model too.
 - **Reads the files you already have.** csv, parquet, json, `.ts`, `.tsf`,
   and `.arff` go in. `--format human|agent|json|quiet` comes out.
 - **Failures say what to do next.** A missing optional dependency exits `3`
@@ -105,6 +106,10 @@ sktime-cli run predict --model model.zip --fh 1:12
 sktime-cli run evaluate "NaiveForecaster(sp=12)" --data airline.csv --fh 1:12 \
   --metric MeanAbsolutePercentageError
 ```
+
+`--data` takes either a file path or a dataset name, so once you know the name
+you can skip the download and pass `--data airline` directly. An existing file
+wins, so a local `airline.csv` shadows the built-in `airline` dataset.
 
 For a longer walkthrough, see the
 [quickstart](https://sktime-cli.readthedocs.io/en/latest/quickstart.html).
