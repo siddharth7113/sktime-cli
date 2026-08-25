@@ -1,14 +1,16 @@
-"""``sktime-cli run``: one-shot fit / predict / fit-predict / evaluate."""
+"""``sktime-cli run``: one-shot fit / predict / transform / detect / evaluate."""
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import typer
 
-from sktime_cli import _datasets, _io
+from sktime_cli import _frames, _input, _io
 from sktime_cli._errors import CliError
 from sktime_cli._guard import FORMAT_OPT, JSON_OPT, handle_errors
+from sktime_cli._input import Input, ReadOptions
 from sktime_cli._models import estimator_scitype, load_model, save_model
 from sktime_cli._output import (
     OutputFormat,
@@ -16,11 +18,10 @@ from sktime_cli._output import (
     emit_record,
     resolve_format,
 )
+from sktime_cli._scitypes import handler_for
 from sktime_cli._specs import build_estimator, resolve_cv, resolve_metric
 
 app = typer.Typer(no_args_is_help=True)
-
-_PANEL_SCITYPES = ("classifier", "regressor", "clusterer")
 
 DATA_OPT = typer.Option(
     ...,
@@ -30,118 +31,227 @@ DATA_OPT = typer.Option(
 SET_OPT = typer.Option(
     [], "--set", help="Parameter override key=value; __ nests (repeatable)."
 )
+TARGET_OPT = typer.Option(None, "--target", help="y column in --data.")
+EXOG_OPT = typer.Option(None, "--exog", help="Exogenous X file.")
+INDEX_COL_OPT = typer.Option(
+    "auto", "--index-col", help="Time index column, or 'none'."
+)
+FREQ_OPT = typer.Option(None, "--freq", help="Pandas frequency for the index, e.g. M.")
+LONG_OPT = typer.Option(
+    False, "--long", help="Long-format panel: needs --id-col/--time-col."
+)
+ID_COL_OPT = typer.Option(
+    None, "--id-col", help="Instance id column(s), comma-separated (long format)."
+)
+TIME_COL_OPT = typer.Option(None, "--time-col", help="Time column (long format).")
+FH_OPT = typer.Option(None, "--fh", help="Horizon, e.g. 1:12.")
+OUTPUT_OPT = typer.Option(
+    None, "--output", "-o", help="Write results to a file instead of stdout."
+)
 
 
-def _load_input(
-    data: str,
-    target: str | None = None,
-    exog: Path | None = None,
-    index_col: str = "auto",
-    freq: str | None = None,
-) -> dict:
-    """Resolve --data (path or dataset name) into y/X for the workflow."""
-    path = Path(data)
-    if path.exists():
-        read = _io.read_any(path, index_col=index_col, freq=freq)
-        if read.kind in ("panel", "hierarchical") and read.y is not None:
-            return {"kind": "panel", "X": read.obj, "y": read.y}
-        if read.kind in ("panel", "hierarchical"):
-            return {"kind": "panel", "X": read.obj, "y": None}
-        obj = read.obj
-        X = None
-        if target is not None:
-            import pandas as pd
-
-            if not isinstance(obj, pd.DataFrame) or target not in obj.columns:
-                raise CliError("not_found", f"target column {target!r} not in {data}")
-            y = obj[target]
-            rest = obj.drop(columns=[target])
-            X = rest if rest.shape[1] else None
-        else:
-            y = obj
-        if exog is not None:
-            X = _io.read_any(exog, index_col=index_col, freq=freq).obj
-        return {"kind": "series", "y": y, "X": X}
-
-    source, canonical = _datasets.resolve(data)
-    loaded = _datasets.load(source, canonical)
-    if loaded["task"] == "forecasting":
-        return {"kind": "series", "y": loaded["y"], "X": loaded.get("X")}
-    return {"kind": "panel", "X": loaded["X"], "y": loaded["y"]}
-
-
-def _fit(est, scitype: str, inp: dict, fh_text: str | None):
-    """Dispatch fit by scitype; returns (n_obs, extras dict)."""
-    if scitype == "forecaster":
-        if inp["kind"] != "series":
-            raise CliError("data_error", "forecasters need Series data, got a panel")
-        y = inp["y"]
-        fh = _io.parse_fh(fh_text) if fh_text else None
-        try:
-            est.fit(y=y, X=inp.get("X"), fh=fh)
-        except ValueError as err:
-            if "fh" in str(err).lower():
-                raise CliError(
-                    "usage",
-                    f"this forecaster requires the horizon at fit time: {err}",
-                    hint="pass --fh, e.g. --fh 1:12",
-                ) from err
-            raise
-        return len(y), {"cutoff": str(est.cutoff[0])}
-    if scitype in _PANEL_SCITYPES:
-        if inp["kind"] != "panel":
-            raise CliError(
-                "data_error",
-                f"{scitype}s need Panel data (.ts file or classification dataset)",
-            )
-        X, y = inp["X"], inp["y"]
-        if y is None and scitype != "clusterer":
-            raise CliError("data_error", f"{scitype} training data has no labels")
-        est.fit(X, y) if y is not None else est.fit(X)
-        return len(X), {}
-    raise CliError(
-        "usage",
-        f"run supports forecaster/classifier/regressor/clusterer, got {scitype}",
+def _read_opts(index_col, freq, long, id_col, time_col) -> ReadOptions:
+    return ReadOptions(
+        index_col=index_col, freq=freq, long=long, id_col=id_col, time_col=time_col
     )
 
 
-def _predict(est, scitype: str, fh_text: str | None, data: str | None, proba: bool):
-    """Dispatch predict by scitype; returns a pandas object."""
+def _looks_like_panel(obj) -> bool:
     import pandas as pd
 
-    if scitype == "forecaster":
-        fh = _io.parse_fh(fh_text) if fh_text else None
-        X = None
-        if data:
-            X = _io.read_any(Path(data)).obj
-        try:
+    return isinstance(getattr(obj, "index", None), pd.MultiIndex)
+
+
+# --------------------------------------------------------------------------
+# fit dispatch
+
+
+def _fit(est, handler: str, inp: Input, source: str, fh_text: str | None):
+    """Dispatch fit by handler family; returns (n_obs, extras dict)."""
+    if handler == "forecaster":
+        return _fit_forecaster(est, inp, source, fh_text)
+    if handler == "panel":
+        return _fit_panel(est, inp)
+    if handler in ("transformer", "detector"):
+        X = inp.obj
+        est.fit(X, inp.labels) if inp.labels is not None else est.fit(X)
+        return len(X), {}
+    raise CliError("internal", f"unhandled run handler: {handler}")
+
+
+def _fit_forecaster(est, inp: Input, source: str, fh_text: str | None):
+    """Fit a forecaster on Series, or on Panel/Hierarchical y (global forecasting)."""
+    y = _input.as_endogenous(inp, source)
+    fh = _io.parse_fh(fh_text) if fh_text else None
+    try:
+        est.fit(y=y, X=inp.exog, fh=fh)
+    except ValueError as err:
+        if "fh" in str(err).lower():
+            raise CliError(
+                "usage",
+                f"this forecaster requires the horizon at fit time: {err}",
+                hint="pass --fh, e.g. --fh 1:12",
+            ) from err
+        raise
+    extras = {}
+    if est.cutoff is not None:
+        extras["cutoff"] = str(est.cutoff[0])
+    if inp.kind != "series":
+        extras["input_kind"] = inp.kind
+    return len(y), extras
+
+
+def _check_panel_input(inp: Input) -> None:
+    """Reject Series data for estimators that need a Panel, with a usable hint."""
+    if inp.kind not in ("panel", "hierarchical") and not _looks_like_panel(inp.obj):
+        raise CliError(
+            "data_error",
+            "this estimator needs Panel data, got a single series",
+            hint=(
+                "use a .ts file or a classification dataset, or read a "
+                "long-format file with --long --id-col ID --time-col TIME"
+            ),
+        )
+
+
+def _fit_panel(est, inp: Input):
+    """Fit a classifier/regressor/clusterer on Panel data."""
+    _check_panel_input(inp)
+    X, y = inp.obj, inp.labels
+    if y is None and estimator_scitype(est) != "clusterer":
+        raise CliError(
+            "data_error",
+            "training data has no labels",
+            hint="use a .ts file with class labels, or pass --target",
+        )
+    est.fit(X, y) if y is not None else est.fit(X)
+    return len(X), {}
+
+
+# --------------------------------------------------------------------------
+# predict dispatch
+
+
+def _require_proba(est, mode: str) -> None:
+    """Fail with a CLI-level message when a forecaster has no interval support."""
+    if not est.get_tag("capability:pred_int", False, raise_error=False):
+        raise CliError(
+            "usage",
+            f"{type(est).__name__} does not support probabilistic forecasts",
+            hint=(
+                "find one that does with: sktime-cli registry search forecaster "
+                "-t capability:pred_int=True"
+            ),
+            detail=f"--{mode} needs the capability:pred_int tag",
+        )
+
+
+def _predict_forecaster(est, fh_text, X, mode: str, levels, wide: bool):
+    """Point or probabilistic forecast, flattened to long form unless --wide."""
+    fh = _io.parse_fh(fh_text) if fh_text else None
+
+    def shape(raw, names):
+        return _frames.widen(raw) if wide else _frames.melt(raw, names)
+
+    try:
+        if mode == "point":
             return est.predict(fh=fh, X=X)
-        except ValueError as err:
-            if "fh" in str(err).lower():
-                raise CliError(
-                    "usage",
-                    f"no forecasting horizon: {err}",
-                    hint="pass --fh, e.g. --fh 1:12",
-                ) from err
-            raise
-    if data is None:
-        raise CliError("usage", f"{scitype} predict needs --data with panel X")
-    read = _io.read_any(Path(data))
-    X = read.obj
+        _require_proba(est, mode)
+        if mode == "interval":
+            raw = est.predict_interval(fh=fh, X=X, coverage=levels or [0.9])
+            return shape(raw, _frames.INTERVAL_LEVELS)
+        if mode == "quantiles":
+            raw = est.predict_quantiles(fh=fh, X=X, alpha=levels or [0.05, 0.95])
+            return shape(raw, _frames.QUANTILE_LEVELS)
+        if mode == "var":
+            return shape(est.predict_var(fh=fh, X=X), _frames.VAR_LEVELS)
+    except ValueError as err:
+        if "fh" in str(err).lower():
+            raise CliError(
+                "usage", f"no forecasting horizon: {err}", hint="pass --fh, e.g. 1:12"
+            ) from err
+        raise
+    raise CliError("internal", f"unhandled predict mode: {mode}")
+
+
+def _predict_panel(est, X, proba: bool):
+    """Predict labels or class probabilities for Panel data."""
+    import pandas as pd
+
     if proba:
         result = est.predict_proba(X)
         classes = [str(c) for c in getattr(est, "classes_", range(result.shape[1]))]
         return pd.DataFrame(result, columns=classes)
-    result = est.predict(X)
-    return pd.Series(result, name="prediction")
+    return pd.Series(est.predict(X), name="prediction")
 
 
-def _emit_prediction(pred, output: Path | None, fmt: OutputFormat) -> None:
+def _detector_result(est, X, kind: str):
+    """Run the detector method matching ``--kind``; returns (frame, resolved kind)."""
+    if kind == "auto":
+        task = str(est.get_tag("task", "segmentation", raise_error=False))
+        kind = "segments" if "segment" in task else "points"
+    if kind == "points":
+        return _frames.to_frame(est.predict_points(X), name="point"), kind
+    if kind == "segments":
+        return _frames.segments_to_frame(est.predict_segments(X)), kind
+    if kind == "scores":
+        return _frames.to_frame(est.predict_scores(X), name="score"), kind
+    raise CliError("usage", f"invalid --kind {kind!r}: use points|segments|scores")
+
+
+def _emit_result(
+    result, output: Path | None, fmt: OutputFormat, extra: dict | None = None
+) -> None:
+    """Write a frame result to --output, or stream it to stdout.
+
+    With ``--output`` stdout carries a manifest, so side facts like a persisted
+    model path belong in it. Without it stdout carries the data itself, so
+    those facts go to stderr rather than corrupting the result stream.
+    """
     if output is not None:
-        files = _io.write_any(pred, output)
-        emit_record({"files": files, "n": int(len(pred))}, fmt, quiet_value=files[0])
-    else:
-        emit_frame(pred, fmt)
+        files = _io.write_any(result, output)
+        emit_record(
+            {"files": files, "n": int(len(result)), **(extra or {})},
+            fmt,
+            quiet_value=files[0],
+        )
+        return
+    emit_frame(result, fmt)
+    for key, value in (extra or {}).items():
+        print(f"{key}: {value}", file=sys.stderr)
+
+
+def _proba_mode(interval, quantiles, var, residuals) -> str:
+    """Resolve the mutually exclusive probabilistic flags to one mode."""
+    chosen = [
+        name
+        for name, on in (
+            ("interval", interval is not None),
+            ("quantiles", quantiles is not None),
+            ("var", var),
+            ("residuals", residuals),
+        )
+        if on
+    ]
+    if len(chosen) > 1:
+        raise CliError("usage", f"--{' and --'.join(chosen)} are mutually exclusive")
+    return chosen[0] if chosen else "point"
+
+
+def _parse_levels(text: str | None) -> list[float] | None:
+    """Parse a comma-separated list of coverages/alphas."""
+    if not text:
+        return None
+    try:
+        return [float(part) for part in text.split(",") if part.strip()]
+    except ValueError as err:
+        raise CliError(
+            "usage", f"invalid level list {text!r}: use e.g. 0.8,0.95"
+        ) from err
+
+
+# --------------------------------------------------------------------------
+# commands
 
 
 @app.command("fit")
@@ -151,15 +261,14 @@ def fit(
         ..., help='Estimator spec, e.g. "NaiveForecaster(sp=12)".'
     ),
     data: str = DATA_OPT,
-    target: str | None = typer.Option(None, "--target", help="y column in --data."),
-    exog: Path | None = typer.Option(None, "--exog", help="Exogenous X file."),
-    index_col: str = typer.Option(
-        "auto", "--index-col", help="Time index column: a name, auto, or none."
-    ),
-    freq: str | None = typer.Option(
-        None, "--freq", help="Pandas frequency for the index, e.g. M, D."
-    ),
-    fh: str | None = typer.Option(None, "--fh", help="Horizon, e.g. 1:12."),
+    target: str | None = TARGET_OPT,
+    exog: Path | None = EXOG_OPT,
+    index_col: str = INDEX_COL_OPT,
+    freq: str | None = FREQ_OPT,
+    long: bool = LONG_OPT,
+    id_col: str | None = ID_COL_OPT,
+    time_col: str | None = TIME_COL_OPT,
+    fh: str | None = FH_OPT,
     set_: list[str] = SET_OPT,
     model_out: Path | None = typer.Option(
         None, "--model-out", help="Model .zip path (default: under the cache dir)."
@@ -171,8 +280,11 @@ def fit(
     fmt = resolve_format(format_, json_)
     est = build_estimator(spec, set_)
     scitype = estimator_scitype(est)
-    inp = _load_input(data, target=target, exog=exog, index_col=index_col, freq=freq)
-    n_obs, extras = _fit(est, scitype, inp, fh)
+    handler = handler_for(scitype)
+    inp = _input.load(
+        data, _read_opts(index_col, freq, long, id_col, time_col), target, exog
+    )
+    n_obs, extras = _fit(est, handler, inp, data, fh)
     path = save_model(est, model_out)
     record = {
         "model": str(path),
@@ -188,23 +300,67 @@ def fit(
 @handle_errors
 def predict(
     model: Path = typer.Option(..., "--model", help="Model .zip from `run fit`."),
-    fh: str | None = typer.Option(None, "--fh", help="Horizon, e.g. 1:12."),
+    fh: str | None = FH_OPT,
     data: str | None = typer.Option(
         None, "--data", help="X data: exog for forecasters, panel for classifiers."
     ),
+    index_col: str = INDEX_COL_OPT,
+    freq: str | None = FREQ_OPT,
+    long: bool = LONG_OPT,
+    id_col: str | None = ID_COL_OPT,
+    time_col: str | None = TIME_COL_OPT,
     proba: bool = typer.Option(False, "--proba", help="Class probabilities."),
-    output: Path | None = typer.Option(
-        None, "--output", "-o", help="Write predictions to a file instead of stdout."
+    interval: str | None = typer.Option(
+        None, "--interval", help="Prediction intervals at coverage(s), e.g. 0.8,0.95."
     ),
+    quantiles: str | None = typer.Option(
+        None, "--quantiles", help="Quantile forecasts at alpha(s), e.g. 0.1,0.9."
+    ),
+    var: bool = typer.Option(False, "--var", help="Forecast variance."),
+    residuals: bool = typer.Option(
+        False, "--residuals", help="In-sample residuals; --data carries the y series."
+    ),
+    wide: bool = typer.Option(
+        False, "--wide", help="Keep sktime's native columns, joined with __."
+    ),
+    output: Path | None = OUTPUT_OPT,
     format_: OutputFormat = FORMAT_OPT,
     json_: bool = JSON_OPT,
 ) -> None:
-    """Predict from a saved model; writes predictions to stdout or --output."""
+    """Predict from a saved model: point, probabilistic, or panel results."""
     fmt = resolve_format(format_, json_)
     est = load_model(model)
-    scitype = estimator_scitype(est)
-    pred = _predict(est, scitype, fh, data, proba)
-    _emit_prediction(pred, output, fmt)
+    handler = handler_for(estimator_scitype(est))
+    opts = _read_opts(index_col, freq, long, id_col, time_col)
+    loaded = _input.load(data, opts) if data else None
+
+    if handler == "forecaster":
+        mode = _proba_mode(interval, quantiles, var, residuals)
+        if mode == "residuals":
+            if loaded is None:
+                raise CliError("usage", "--residuals needs --data with the y series")
+            result = _frames.to_frame(est.predict_residuals(loaded.obj), "residual")
+        else:
+            result = _predict_forecaster(
+                est,
+                fh,
+                loaded.obj if loaded is not None else None,
+                mode,
+                _parse_levels(interval or quantiles),
+                wide,
+            )
+        _emit_result(result, output, fmt)
+        return
+
+    if loaded is None:
+        raise CliError("usage", "predict needs --data with the input data")
+    if handler == "panel":
+        result = _predict_panel(est, loaded.obj, proba)
+    elif handler == "transformer":
+        result = _frames.to_frame(est.transform(loaded.obj))
+    else:  # detector
+        result, _kind = _detector_result(est, loaded.obj, "auto")
+    _emit_result(result, output, fmt)
 
 
 @app.command("fit-predict")
@@ -214,67 +370,180 @@ def fit_predict(
         ..., help='Estimator spec, e.g. "NaiveForecaster(sp=12)".'
     ),
     data: str = DATA_OPT,
-    target: str | None = typer.Option(None, "--target", help="y column in --data."),
-    exog: Path | None = typer.Option(None, "--exog", help="Exogenous X file."),
-    index_col: str = typer.Option(
-        "auto", "--index-col", help="Time index column: a name, auto, or none."
-    ),
-    freq: str | None = typer.Option(
-        None, "--freq", help="Pandas frequency for the index, e.g. M, D."
-    ),
-    fh: str | None = typer.Option(None, "--fh", help="Horizon, e.g. 1:12."),
+    target: str | None = TARGET_OPT,
+    exog: Path | None = EXOG_OPT,
+    index_col: str = INDEX_COL_OPT,
+    freq: str | None = FREQ_OPT,
+    long: bool = LONG_OPT,
+    id_col: str | None = ID_COL_OPT,
+    time_col: str | None = TIME_COL_OPT,
+    fh: str | None = FH_OPT,
     set_: list[str] = SET_OPT,
     model_out: Path | None = typer.Option(
         None, "--model-out", help="Also persist the fitted model."
     ),
-    output: Path | None = typer.Option(
-        None, "--output", "-o", help="Write predictions here instead of stdout."
-    ),
+    output: Path | None = OUTPUT_OPT,
     format_: OutputFormat = FORMAT_OPT,
     json_: bool = JSON_OPT,
 ) -> None:
     """Fit and predict in one process (forecast fh, or in-sample for panels)."""
-    import sys
-
     fmt = resolve_format(format_, json_)
     est = build_estimator(spec, set_)
-    scitype = estimator_scitype(est)
-    inp = _load_input(data, target=target, exog=exog, index_col=index_col, freq=freq)
+    handler = handler_for(estimator_scitype(est))
+    inp = _input.load(
+        data, _read_opts(index_col, freq, long, id_col, time_col), target, exog
+    )
 
-    if scitype == "forecaster":
+    if handler == "forecaster":
         if not fh:
             raise CliError("usage", "fit-predict needs --fh for forecasters")
-        _fit(est, scitype, inp, fh)
+        _fit(est, handler, inp, data, fh)
         pred = est.predict()
-    else:
-        if inp["kind"] != "panel":
-            raise CliError("data_error", f"{scitype}s need Panel data")
-        pred_raw = est.fit_predict(inp["X"], inp["y"])
+    elif handler == "panel":
+        # fit_predict, not fit+predict: sktime cross-validates the out-of-sample
+        # part, so in-sample predictions are not optimistic.
+        _check_panel_input(inp)
         import pandas as pd
 
-        pred = pd.Series(pred_raw, name="prediction")
+        pred = pd.Series(est.fit_predict(inp.obj, inp.labels), name="prediction")
+    elif handler == "transformer":
+        pred = _frames.to_frame(est.fit_transform(inp.obj, inp.labels))
+    else:  # detector
+        est.fit(inp.obj)
+        pred, _kind = _detector_result(est, inp.obj, "auto")
 
     if model_out is not None:
         path = save_model(est, model_out)
         print(f"model saved: {path}", file=sys.stderr)
-    _emit_prediction(pred, output, fmt)
+    _emit_result(pred, output, fmt)
+
+
+@app.command("transform")
+@handle_errors
+def transform(
+    spec: str | None = typer.Argument(
+        None, help='Transformer spec, e.g. "Detrender()". Omit when using --model.'
+    ),
+    data: str = DATA_OPT,
+    model: Path | None = typer.Option(
+        None, "--model", help="Fitted transformer .zip, instead of a spec."
+    ),
+    target: str | None = TARGET_OPT,
+    index_col: str = INDEX_COL_OPT,
+    freq: str | None = FREQ_OPT,
+    long: bool = LONG_OPT,
+    id_col: str | None = ID_COL_OPT,
+    time_col: str | None = TIME_COL_OPT,
+    inverse: bool = typer.Option(
+        False, "--inverse", help="Apply inverse_transform instead of transform."
+    ),
+    set_: list[str] = SET_OPT,
+    model_out: Path | None = typer.Option(
+        None, "--model-out", help="Persist the fitted transformer."
+    ),
+    output: Path | None = OUTPUT_OPT,
+    format_: OutputFormat = FORMAT_OPT,
+    json_: bool = JSON_OPT,
+) -> None:
+    """Transform data with a transformer spec or a saved fitted transformer."""
+    fmt = resolve_format(format_, json_)
+    if (spec is None) == (model is None):
+        raise CliError("usage", "pass either a transformer spec or --model, not both")
+
+    est = load_model(model) if model is not None else build_estimator(spec, set_)
+    scitype = estimator_scitype(est)
+    if handler_for(scitype) != "transformer":
+        raise CliError(
+            "usage",
+            f"run transform needs a transformer, got a {scitype}",
+            hint="fit and predict other estimators with: sktime-cli run fit-predict",
+        )
+
+    inp = _input.load(data, _read_opts(index_col, freq, long, id_col, time_col), target)
+    if inverse and not est.get_tag(
+        "capability:inverse_transform", False, raise_error=False
+    ):
+        raise CliError(
+            "usage",
+            f"{type(est).__name__} does not support inverse_transform",
+            hint=(
+                "find one that does with: sktime-cli registry search transformer "
+                "-t capability:inverse_transform=True"
+            ),
+        )
+
+    if model is None:
+        est.fit(inp.obj, inp.labels) if inp.labels is not None else est.fit(inp.obj)
+    result = est.inverse_transform(inp.obj) if inverse else est.transform(inp.obj)
+
+    extra = {}
+    if model_out is not None:
+        extra["model"] = str(save_model(est, model_out))
+    _emit_result(_frames.to_frame(result), output, fmt, extra)
+
+
+@app.command("detect")
+@handle_errors
+def detect(
+    spec: str | None = typer.Argument(
+        None, help='Detector spec, e.g. "ClaSPSegmentation()". Omit with --model.'
+    ),
+    data: str = DATA_OPT,
+    model: Path | None = typer.Option(
+        None, "--model", help="Fitted detector .zip, instead of a spec."
+    ),
+    kind: str = typer.Option(
+        "auto", "--kind", help="Result kind: auto|points|segments|scores."
+    ),
+    target: str | None = TARGET_OPT,
+    index_col: str = INDEX_COL_OPT,
+    freq: str | None = FREQ_OPT,
+    long: bool = LONG_OPT,
+    id_col: str | None = ID_COL_OPT,
+    time_col: str | None = TIME_COL_OPT,
+    set_: list[str] = SET_OPT,
+    model_out: Path | None = typer.Option(
+        None, "--model-out", help="Persist the fitted detector."
+    ),
+    output: Path | None = OUTPUT_OPT,
+    format_: OutputFormat = FORMAT_OPT,
+    json_: bool = JSON_OPT,
+) -> None:
+    """Detect anomalies, change points, or segments in a series."""
+    fmt = resolve_format(format_, json_)
+    if (spec is None) == (model is None):
+        raise CliError("usage", "pass either a detector spec or --model, not both")
+
+    est = load_model(model) if model is not None else build_estimator(spec, set_)
+    scitype = estimator_scitype(est)
+    if handler_for(scitype) != "detector":
+        raise CliError("usage", f"run detect needs a detector, got a {scitype}")
+
+    inp = _input.load(data, _read_opts(index_col, freq, long, id_col, time_col), target)
+    if model is None:
+        est.fit(inp.obj)
+    result, resolved = _detector_result(est, inp.obj, kind)
+
+    extra = {"kind": resolved}
+    if model_out is not None:
+        extra["model"] = str(save_model(est, model_out))
+    _emit_result(result, output, fmt, extra)
 
 
 @app.command("evaluate")
 @handle_errors
 def evaluate_cmd(
     spec: str = typer.Argument(
-        ..., help='Forecaster spec, e.g. "NaiveForecaster(sp=12)".'
+        ..., help='Estimator spec, e.g. "NaiveForecaster(sp=12)".'
     ),
     data: str = DATA_OPT,
-    target: str | None = typer.Option(None, "--target", help="y column in --data."),
-    exog: Path | None = typer.Option(None, "--exog", help="Exogenous X file."),
-    index_col: str = typer.Option(
-        "auto", "--index-col", help="Time index column: a name, auto, or none."
-    ),
-    freq: str | None = typer.Option(
-        None, "--freq", help="Pandas frequency for the index, e.g. M, D."
-    ),
+    target: str | None = TARGET_OPT,
+    exog: Path | None = EXOG_OPT,
+    index_col: str = INDEX_COL_OPT,
+    freq: str | None = FREQ_OPT,
+    long: bool = LONG_OPT,
+    id_col: str | None = ID_COL_OPT,
+    time_col: str | None = TIME_COL_OPT,
     cv: str | None = typer.Option(
         None,
         "--cv",
@@ -284,7 +553,7 @@ def evaluate_cmd(
         [], "--metric", help="Metric name or spec (repeatable)."
     ),
     strategy: str = typer.Option(
-        "refit", "--strategy", help="refit|update|no-update_params."
+        "refit", "--strategy", help="refit|update|no-update_params (forecasters)."
     ),
     fh: str | None = typer.Option(
         None, "--fh", help="Horizon for the default splitter when --cv is absent."
@@ -299,43 +568,123 @@ def evaluate_cmd(
     format_: OutputFormat = FORMAT_OPT,
     json_: bool = JSON_OPT,
 ) -> None:
-    """Backtest a forecaster with cross-validation (sktime evaluate)."""
-    from sktime.forecasting.model_evaluation import evaluate
-
+    """Backtest a forecaster, classifier, or regressor with cross-validation."""
     fmt = resolve_format(format_, json_)
     est = build_estimator(spec, set_)
     scitype = estimator_scitype(est)
-    if scitype != "forecaster":
-        raise CliError("usage", "run evaluate supports forecasters in v0.0.1")
+    handler = handler_for(scitype)
+    if handler not in ("forecaster", "panel"):
+        raise CliError(
+            "usage",
+            "run evaluate supports forecasters, classifiers, and regressors, "
+            f"got a {scitype}",
+        )
+    inp = _input.load(
+        data, _read_opts(index_col, freq, long, id_col, time_col), target, exog
+    )
+    if handler == "forecaster":
+        results = _evaluate_forecaster(
+            est, inp, data, cv, metric, strategy, fh, initial_window
+        )
+    else:
+        results = _evaluate_panel(est, inp, scitype, cv, metric)
+    _emit_evaluation(results, output, fmt)
+
+
+def _evaluate_forecaster(est, inp, source, cv, metric, strategy, fh, initial_window):
+    """Backtest a forecaster with sktime's forecasting evaluate."""
+    from sktime.forecasting.model_evaluation import evaluate
+
     if strategy not in ("refit", "update", "no-update_params"):
         raise CliError("usage", f"invalid --strategy {strategy!r}")
     if not cv and not fh:
         raise CliError("usage", "pass --cv, or --fh to use a default expanding window")
 
-    inp = _load_input(data, target=target, exog=exog, index_col=index_col, freq=freq)
-    if inp["kind"] != "series":
-        raise CliError("data_error", "evaluate needs Series data")
-    y = inp["y"]
-
+    y = _input.as_endogenous(inp, source)
     fh_obj = _io.parse_fh(fh) if fh else None
     splitter = resolve_cv(cv, fh_obj, initial_window, len(y))
     metrics = [resolve_metric(m) for m in metric] or [
         resolve_metric("MeanAbsolutePercentageError")
     ]
-
-    results = evaluate(
+    return evaluate(
         forecaster=est,
         cv=splitter,
         y=y,
-        X=inp.get("X"),
+        X=inp.exog,
         strategy=strategy,
         scoring=metrics,
+        error_score="raise",
     )
+
+
+# sktime names the estimator argument of each panel evaluate after its scitype
+_PANEL_EVALUATE = {
+    "classifier": ("sktime.classification.model_evaluation", "classifier"),
+    "regressor": ("sktime.regression.model_evaluation", "regressor"),
+}
+
+
+def _evaluate_panel(est, inp, scitype: str, cv, metric):
+    """Cross-validate a classifier or regressor with sktime's panel evaluate."""
+    target = _PANEL_EVALUATE.get(scitype)
+    if target is None:
+        raise CliError(
+            "usage",
+            f"sktime has no cross-validation utility for {scitype}s",
+            hint="evaluate supports forecasters, classifiers, and regressors",
+        )
+    module_name, arg_name = target
+    try:
+        evaluate = __import__(module_name, fromlist=["evaluate"]).evaluate
+    except ImportError as err:  # pragma: no cover - depends on the sktime version
+        raise CliError(
+            "usage",
+            f"this sktime version cannot evaluate {scitype}s",
+            detail=str(err),
+        ) from err
+
+    if inp.labels is None:
+        raise CliError(
+            "data_error",
+            "evaluate needs labelled Panel data",
+            hint="use a .ts file with class labels, or a classification dataset",
+        )
+    kwargs = {
+        arg_name: est,
+        "cv": _resolve_panel_cv(cv),
+        "X": inp.obj,
+        "y": inp.labels,
+        # surface a failing fold as a CLI error instead of a silent NaN score
+        "error_score": "raise",
+    }
+    if metric:
+        kwargs["scoring"] = [_resolve_panel_metric(m) for m in metric]
+    return evaluate(**kwargs)
+
+
+def _resolve_panel_metric(name: str):
+    """Resolve a panel metric: an sklearn.metrics function, else a registry object."""
+    import sklearn.metrics
+
+    func = getattr(sklearn.metrics, name, None)
+    if callable(func):
+        return func
+    return resolve_metric(name)
+
+
+def _resolve_panel_cv(cv: str | None):
+    """Resolve --cv for panel evaluation, defaulting to 3-fold cross-validation."""
+    if cv:
+        return build_estimator(cv)
+    from sklearn.model_selection import KFold
+
+    return KFold(n_splits=3, shuffle=True, random_state=42)
+
+
+def _emit_evaluation(results, output: Path | None, fmt: OutputFormat) -> None:
+    """Emit per-fold results plus the aggregate mean/std of every test column."""
     aggregate = {
-        col: {
-            "mean": float(results[col].mean()),
-            "std": float(results[col].std()),
-        }
+        col: {"mean": float(results[col].mean()), "std": float(results[col].std())}
         for col in results.columns
         if col.startswith("test_")
     }

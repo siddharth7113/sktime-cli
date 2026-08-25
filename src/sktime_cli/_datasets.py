@@ -1,10 +1,22 @@
-"""Dataset name resolution and loading.
+"""Dataset name resolution and loading, driven by sktime's dataset objects.
 
-Dataset IDs are namespaced: bare builtin names (``airline``, ``arrow_head``),
-``ucr:ArrowHead`` (timeseriesclassification.com), ``tsf:m1_yearly_dataset``
-(forecastingdata.org), ``fpp3:aus_arrivals`` (Forecasting: Principles and
-Practice). Bare names are resolved builtin-first, then across the remote
-registries; ambiguity is an error listing the namespaced candidates.
+Dataset ids are namespaced: bare names (``airline``, ``arrow_head``) resolve to
+sktime dataset *objects* in the registry, ``ucr:ArrowHead``
+(timeseriesclassification.com), ``tsf:m1_yearly_dataset``
+(forecastingdata.org), and ``fpp3:aus_arrivals`` (Forecasting: Principles and
+Practice) resolve to the corresponding remote loaders. Bare names are resolved
+object-first, then across the remote registries; ambiguity is an error listing
+the namespaced candidates.
+
+Bare names are exactly the ``name`` tags sktime's dataset objects declare, so
+they follow upstream rather than a local spelling (``gun_point``, not
+``gunpoint``).
+
+The bare-name catalogue is *not* hand-maintained: it comes from the ``name``
+tag of every dataset object in the registry, so a dataset added upstream is
+available here with no change. Each object also carries ``task_type``,
+``n_timepoints``, ``frequency``, ``is_univariate`` and friends as tags, which
+is what lets ``datasets describe`` answer without downloading anything.
 """
 
 from __future__ import annotations
@@ -12,49 +24,54 @@ from __future__ import annotations
 import difflib
 from typing import Any
 
+from sktime_cli import _cache
 from sktime_cli._cache import subdir
 from sktime_cli._errors import CliError, missing_dependency
 
-# builtin loaders bundled with sktime (offline unless noted).
-# needs: soft deps; xy: loader returns (y, X) or (X, y) pairs.
-BUILTIN: dict[str, dict[str, Any]] = {
-    "airline": {"loader": "load_airline", "task": "forecasting"},
-    "lynx": {"loader": "load_lynx", "task": "forecasting"},
-    "shampoo_sales": {"loader": "load_shampoo_sales", "task": "forecasting"},
-    "pbs": {"loader": "load_PBS_dataset", "task": "forecasting"},
-    "longley": {"loader": "load_longley", "task": "forecasting", "xy": "y_X"},
-    "uschange": {
-        "loader": "load_uschange",
-        "task": "forecasting",
-        "xy": "y_X",
-        "needs": ["statsmodels"],
-    },
-    "macroeconomic": {
-        "loader": "load_macroeconomic",
-        "task": "forecasting",
-        "needs": ["statsmodels"],
-    },
-    "solar": {"loader": "load_solar", "task": "forecasting", "network": True},
-    "hierarchical_sales": {
-        "loader": "load_hierarchical_sales_toydata",
-        "task": "forecasting",
-        "hierarchical": True,
-    },
-    "arrow_head": {"loader": "load_arrow_head", "task": "classification"},
-    "gunpoint": {"loader": "load_gunpoint", "task": "classification"},
-    "basic_motions": {"loader": "load_basic_motions", "task": "classification"},
-    "osuleaf": {"loader": "load_osuleaf", "task": "classification"},
-    "acsf1": {"loader": "load_acsf1", "task": "classification"},
-    "italy_power_demand": {
-        "loader": "load_italy_power_demand",
-        "task": "classification",
-    },
-    "japanese_vowels": {"loader": "load_japanese_vowels", "task": "classification"},
-    "plaid": {"loader": "load_plaid", "task": "classification"},
+# datasets sktime ships only as loader functions, with no registry object.
+LOADER_ONLY: dict[str, dict[str, Any]] = {
     "unit_test": {"loader": "load_unit_test", "task": "classification"},
     "covid_3month": {"loader": "load_covid_3month", "task": "regression"},
-    "tecator": {"loader": "load_tecator", "task": "regression"},
 }
+
+REMOTE_SOURCES = ("ucr", "tsf", "fpp3")
+
+
+def display_source(source: str) -> str:
+    """Name a source the way users select it: both local kinds are ``builtin``."""
+    return "builtin" if source in ("object", "loader") else source
+
+
+_REMOTE_TASK = {"ucr": "classification", "tsf": "forecasting", "fpp3": "forecasting"}
+
+# sktime `task_type` tag value -> the CLI's task vocabulary
+_TASK_FROM_TAG = {
+    "forecaster": "forecasting",
+    "classifier": "classification",
+    "regressor": "regression",
+}
+
+
+def task_of(record: dict) -> str:
+    """Map a dataset object's ``task_type`` tag to the CLI task name."""
+    tag = record["tags"].get("task_type")
+    values = tag if isinstance(tag, list) else [tag]
+    for value in values:
+        if value in _TASK_FROM_TAG:
+            return _TASK_FROM_TAG[value]
+    return "unknown"
+
+
+def object_index() -> dict[str, dict]:
+    """Map dataset id -> registry record, for every named sktime dataset object."""
+    index: dict[str, dict] = {}
+    for record in _cache.get_registry():
+        if not any(s.startswith("dataset") for s in record["scitypes"]):
+            continue
+        name = record["tags"].get("name")
+        if isinstance(name, str) and name:
+            index[name] = record
+    return index
 
 
 def _remote_names() -> dict[str, list[str]]:
@@ -71,10 +88,14 @@ def _remote_names() -> dict[str, list[str]]:
 
 
 def resolve(name: str) -> tuple[str, str]:
-    """Resolve a dataset id to (source, canonical_name)."""
+    """Resolve a dataset id to ``(source, canonical_name)``.
+
+    ``source`` is ``object`` (an sktime dataset object), ``loader`` (a loader
+    function with no object), or one of the remote namespaces.
+    """
     if ":" in name:
         source, _, rest = name.partition(":")
-        if source not in ("ucr", "tsf", "fpp3"):
+        if source not in REMOTE_SOURCES:
             raise CliError(
                 "usage", f"unknown dataset namespace {source!r}: use ucr:|tsf:|fpp3:"
             )
@@ -88,8 +109,10 @@ def resolve(name: str) -> tuple[str, str]:
             )
         return source, rest
 
-    if name in BUILTIN:
-        return "builtin", name
+    if name in object_index():
+        return "object", name
+    if name in LOADER_ONLY:
+        return "loader", name
 
     remote = _remote_names()
     matches = [
@@ -107,7 +130,11 @@ def resolve(name: str) -> tuple[str, str]:
             f"ambiguous dataset name {name!r}",
             hint=f"use one of: {', '.join(matches)}",
         )
-    pool = list(BUILTIN) + [f"{s}:{n}" for s, names in remote.items() for n in names]
+    pool = (
+        list(object_index())
+        + list(LOADER_ONLY)
+        + [f"{s}:{n}" for s, names in remote.items() for n in names]
+    )
     close = difflib.get_close_matches(name, pool, n=3)
     raise CliError(
         "not_found",
@@ -118,28 +145,55 @@ def resolve(name: str) -> tuple[str, str]:
     )
 
 
-def load(source: str, name: str, split: str | None = None) -> dict[str, Any]:
-    """Load a dataset; returns {task, y?, X?, metadata?}."""
+def _load_object(name: str, split: str | None) -> dict[str, Any]:
+    """Instantiate an sktime dataset object and load the requested split."""
+    record = object_index()[name]
+    if not record.get("installable", True):
+        raise missing_dependency(
+            f"dataset {name}", record.get("python_dependencies") or []
+        )
+    dataset = _cache.import_object(record)()
+    task = task_of(record)
+
+    keys = list(dataset.keys())
+    if split:
+        wanted = [f"X_{split.lower()}", f"y_{split.lower()}"]
+        missing = [key for key in wanted if key not in keys]
+        if missing:
+            raise CliError(
+                "usage",
+                f"dataset {name} has no {split} split",
+                hint=f"available parts: {', '.join(keys)}",
+            )
+        X, y = dataset.load(*wanted)
+    else:
+        X, y = dataset.load("X", "y")
+
+    if task == "forecasting":
+        # forecasting objects return the series as y and exogenous data as X
+        return {"task": task, "y": y, "X": X, "tags": record["tags"]}
+    return {"task": task, "X": X, "y": y, "tags": record["tags"]}
+
+
+def _load_loader(name: str, split: str | None) -> dict[str, Any]:
+    """Load one of the datasets sktime exposes only as a loader function."""
     import sktime.datasets as skd
 
-    if source == "builtin":
-        entry = BUILTIN[name]
-        for dep in entry.get("needs", []):
-            import importlib.util
+    entry = LOADER_ONLY[name]
+    loader = getattr(skd, entry["loader"])
+    kwargs = {"split": split.upper()} if split else {}
+    X, y = loader(**kwargs)
+    return {"task": entry["task"], "X": X, "y": y}
 
-            if importlib.util.find_spec(dep) is None:
-                raise missing_dependency(f"dataset {name}", entry["needs"])
-        loader = getattr(skd, entry["loader"])
-        task = entry["task"]
-        if task == "forecasting":
-            result = loader()
-            if entry.get("xy") == "y_X":
-                y, X = result
-                return {"task": task, "y": y, "X": X}
-            return {"task": task, "y": result}
-        kwargs = {"split": split.upper()} if split else {}
-        X, y = loader(**kwargs)
-        return {"task": task, "X": X, "y": y}
+
+def load(source: str, name: str, split: str | None = None) -> dict[str, Any]:
+    """Load a dataset; returns ``{task, y?, X?, metadata?, tags?}``."""
+    import sktime.datasets as skd
+
+    if source == "object":
+        return _load_object(name, split)
+    if source == "loader":
+        return _load_loader(name, split)
 
     if source == "ucr":
         X, y = skd.load_UCR_UEA_dataset(
@@ -163,28 +217,58 @@ def load(source: str, name: str, split: str | None = None) -> dict[str, Any]:
     raise CliError("internal", f"unhandled dataset source: {source}")
 
 
+# tags worth surfacing in ``datasets describe``, in display order
+DESCRIBE_TAGS = [
+    "n_instances",
+    "n_timepoints",
+    "n_dimensions",
+    "frequency",
+    "is_univariate",
+    "is_equally_spaced",
+    "has_nans",
+    "has_exogenous",
+    "n_splits",
+    "n_panels",
+    "n_hierarchy_levels",
+]
+
+
+def describe_tags(record: dict) -> dict:
+    """Pick the informative tags of a dataset object, skipping empty ones."""
+    tags = record["tags"]
+    return {key: tags[key] for key in DESCRIBE_TAGS if tags.get(key) is not None}
+
+
 def listing(
     source: str | None = None, task: str | None = None, contains: str | None = None
 ) -> list[dict]:
     """Rows for ``datasets list``."""
     rows: list[dict] = []
+
     if source in (None, "builtin"):
-        for name, entry in BUILTIN.items():
+        for name, record in sorted(object_index().items()):
+            rows.append(
+                {
+                    "name": name,
+                    "source": "builtin",
+                    "task": task_of(record),
+                    "offline": not _needs_network(record),
+                    "installable": record.get("installable", True),
+                }
+            )
+        for name, entry in LOADER_ONLY.items():
             rows.append(
                 {
                     "name": name,
                     "source": "builtin",
                     "task": entry["task"],
-                    "offline": not entry.get("network", False),
+                    "offline": True,
+                    "installable": True,
                 }
             )
-    if source in (None, "ucr", "tsf", "fpp3"):
+
+    if source in (None, *REMOTE_SOURCES):
         remote = _remote_names()
-        remote_task = {
-            "ucr": "classification",
-            "tsf": "forecasting",
-            "fpp3": "forecasting",
-        }
         for src, names in remote.items():
             if source not in (None, src):
                 continue
@@ -192,29 +276,22 @@ def listing(
                 {
                     "name": f"{src}:{n}",
                     "source": src,
-                    "task": remote_task[src],
+                    "task": _REMOTE_TASK[src],
                     "offline": False,
+                    "installable": True,
                 }
                 for n in names
             )
-    if source == "objects":
-        from sktime_cli._cache import get_registry
 
-        for record in get_registry():
-            if any(s.startswith("dataset") for s in record["scitypes"]):
-                tags = record["tags"]
-                rows.append(
-                    {
-                        "name": record["name"],
-                        "source": "objects",
-                        "task": ",".join(tags.get("task_type") or [])
-                        if isinstance(tags.get("task_type"), list)
-                        else tags.get("task_type", ""),
-                        "offline": False,
-                    }
-                )
     if task:
         rows = [r for r in rows if r["task"] and task in str(r["task"])]
     if contains:
         rows = [r for r in rows if contains.lower() in r["name"].lower()]
     return rows
+
+
+def _needs_network(record: dict) -> bool:
+    """Report whether loading the dataset downloads rather than reads bundled data."""
+    module = record.get("module", "")
+    # sktime bundles its builtin datasets except the download-backed ones
+    return any(part in module for part in ("solar", "m5"))

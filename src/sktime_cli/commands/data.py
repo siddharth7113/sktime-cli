@@ -167,6 +167,11 @@ def split(
     fh: str | None = typer.Option(
         None, "--fh", help="Forecasting horizon to size the test set, e.g. 1:12."
     ),
+    cv: str | None = typer.Option(
+        None,
+        "--cv",
+        help='Splitter spec for k-fold output, e.g. "ExpandingWindowSplitter(fh=6)".',
+    ),
     exog: Path | None = typer.Option(
         None, "--exog", help="Exogenous data file split alongside y."
     ),
@@ -182,17 +187,25 @@ def split(
     format_: OutputFormat = FORMAT_OPT,
     json_: bool = JSON_OPT,
 ) -> None:
-    """Split a series temporally into train and test files."""
+    """Split a series into train/test files, or into cross-validation folds."""
     from sktime.split import temporal_train_test_split
 
     fmt = resolve_format(format_, json_)
-    if fh and test_size:
-        raise CliError("usage", "--fh and --test-size are mutually exclusive")
-    if not (fh or test_size or train_size):
-        raise CliError("usage", "pass --test-size, --train-size, or --fh")
+    if cv and (fh or test_size or train_size):
+        raise CliError(
+            "usage", "--cv produces folds; it cannot be combined with --fh/--*-size"
+        )
+    if not cv:
+        if fh and test_size:
+            raise CliError("usage", "--fh and --test-size are mutually exclusive")
+        if not (fh or test_size or train_size):
+            raise CliError("usage", "pass --test-size, --train-size, --fh, or --cv")
 
     data = _io.read_any(path, input_format=input_format, index_col=index_col, freq=freq)
     y = data.obj
+    if cv:
+        _emit_folds(y, cv, path, train_out, test_out, fmt)
+        return
     X = _io.read_any(exog, index_col=index_col, freq=freq).obj if exog else None
 
     kwargs = {
@@ -224,3 +237,54 @@ def split(
         record["exog_test"] = str(x_test_out)
     record["files"] = files
     emit_record(record, fmt, quiet_value=f"{train_out} {test_out}")
+
+
+def _emit_folds(y, cv: str, path: Path, train_out, test_out, fmt: OutputFormat) -> None:
+    """Write one train/test file pair per cross-validation fold, plus a manifest."""
+    from sktime_cli._specs import build_estimator
+
+    splitter = build_estimator(cv)
+    if not hasattr(splitter, "split"):
+        raise CliError(
+            "usage",
+            f"--cv needs a splitter, got {type(splitter).__name__}",
+            hint="list splitters with: sktime-cli registry search splitter",
+        )
+
+    suffix = path.suffix or ".csv"
+    train_stem = Path(train_out).with_suffix("") if train_out else path.with_suffix("")
+    test_stem = Path(test_out).with_suffix("") if test_out else path.with_suffix("")
+
+    folds, files = [], []
+    for i, (train_idx, test_idx) in enumerate(splitter.split(y)):
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+        train_path = train_stem.with_name(f"{train_stem.name}_fold{i}_train{suffix}")
+        test_path = test_stem.with_name(f"{test_stem.name}_fold{i}_test{suffix}")
+        written = _io.write_any(y_train, train_path) + _io.write_any(y_test, test_path)
+        files += written
+        folds.append(
+            {
+                "fold": i,
+                "n_train": int(len(y_train)),
+                "n_test": int(len(y_test)),
+                "train": str(train_path),
+                "test": str(test_path),
+            }
+        )
+
+    if not folds:
+        raise CliError(
+            "data_error",
+            f"{type(splitter).__name__} produced no folds for {len(y)} observations",
+            hint="lower initial_window, or use a shorter horizon",
+        )
+    emit_record(
+        {
+            "splitter": str(splitter),
+            "n_folds": len(folds),
+            "folds": folds,
+            "files": files,
+        },
+        fmt,
+        quiet_value="\n".join(f["train"] + " " + f["test"] for f in folds),
+    )

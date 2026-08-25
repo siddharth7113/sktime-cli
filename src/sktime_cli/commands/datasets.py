@@ -17,9 +17,7 @@ app = typer.Typer(no_args_is_help=True)
 @app.command("list")
 @handle_errors
 def list_(
-    source: str | None = typer.Option(
-        None, "--source", help="builtin|ucr|tsf|fpp3|objects."
-    ),
+    source: str | None = typer.Option(None, "--source", help="builtin|ucr|tsf|fpp3."),
     task: str | None = typer.Option(
         None, "--task", help="forecasting|classification|regression."
     ),
@@ -31,13 +29,16 @@ def list_(
 ) -> None:
     """List available datasets across all sources."""
     fmt = resolve_format(format_, json_)
-    if source not in (None, "builtin", "ucr", "tsf", "fpp3", "objects"):
+    if source not in (None, "builtin", *_datasets.REMOTE_SOURCES):
         raise CliError(
-            "usage", f"unknown --source {source!r}: use builtin|ucr|tsf|fpp3|objects"
+            "usage", f"unknown --source {source!r}: use builtin|ucr|tsf|fpp3"
         )
     rows = _datasets.listing(source=source, task=task, contains=name)
     emit_table(
-        rows, fmt, columns=["name", "source", "task", "offline"], quiet_key="name"
+        rows,
+        fmt,
+        columns=["name", "source", "task", "offline", "installable"],
+        quiet_key="name",
     )
 
 
@@ -45,19 +46,40 @@ def list_(
 @handle_errors
 def describe(
     name: str = typer.Argument(..., help="Dataset id, e.g. airline or ucr:ArrowHead."),
+    no_load: bool = typer.Option(
+        False,
+        "--no-load",
+        help="Report tag metadata only, without loading the data.",
+    ),
     format_: OutputFormat = FORMAT_OPT,
     json_: bool = JSON_OPT,
 ) -> None:
-    """Describe a dataset: task, shape, and metadata (no download for remote)."""
+    """Describe a dataset: task, shape, and tag metadata."""
     fmt = resolve_format(format_, json_)
     source, canonical = _datasets.resolve(name)
-    record: dict = {"name": canonical, "source": source}
+    record: dict = {"name": canonical, "source": _datasets.display_source(source)}
 
-    if source != "builtin":
+    if source in _datasets.REMOTE_SOURCES:
         record["task"] = "classification" if source == "ucr" else "forecasting"
         record["note"] = "remote dataset; fetch it with: sktime-cli datasets load " + (
             f"{source}:{canonical}"
         )
+        emit_record(record, fmt, quiet_value=canonical)
+        return
+
+    if source == "object":
+        # dataset objects carry shape, frequency and split counts as tags, so
+        # the description is answerable from metadata alone
+        entry = _datasets.object_index()[canonical]
+        record["task"] = _datasets.task_of(entry)
+        record["installable"] = entry.get("installable", True)
+        if entry.get("python_dependencies"):
+            record["python_dependencies"] = entry["python_dependencies"]
+        record.update(_datasets.describe_tags(entry))
+        if no_load or not record["installable"]:
+            emit_record(record, fmt, quiet_value=canonical)
+            return
+    elif no_load:
         emit_record(record, fmt, quiet_value=canonical)
         return
 
@@ -110,22 +132,33 @@ def load(
     default_ext = "ts" if task in ("classification", "regression") else "csv"
     ext = (file_format or default_ext).lower()
     if output is None:
-        stem = canonical if source == "builtin" else f"{source}_{canonical}"
+        stem = (
+            canonical
+            if source not in _datasets.REMOTE_SOURCES
+            else f"{source}_{canonical}"
+        )
         output = (output_dir or Path.cwd()) / f"{stem}.{ext}"
 
     files: list[str] = []
-    manifest: dict = {"dataset": canonical, "source": source, "task": task}
+    manifest: dict = {
+        "dataset": canonical,
+        "source": _datasets.display_source(source),
+        "task": task,
+    }
 
     if task in ("classification", "regression"):
         X, y = loaded["X"], loaded["y"]
         if ext == "ts":
             files += _io.write_any(X, output, "ts", y=y)
         else:
-            raise CliError(
-                "usage",
-                f"{task} datasets are panels; only --file-format ts is "
-                "supported in v0.0.1",
-            )
+            # non-.ts formats cannot carry labels inline: write y alongside X
+            files += _io.write_any(X, output, ext)
+            if y is not None:
+                import pandas as pd
+
+                labels = output.with_name(output.stem + "_y" + output.suffix)
+                files += _io.write_any(pd.Series(y, name="target"), labels, ext)
+                manifest["labels"] = str(labels)
         manifest["n_instances"] = int(len(X))
         import pandas as pd
 

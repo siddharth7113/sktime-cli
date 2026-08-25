@@ -107,6 +107,52 @@ def _set_time_index(df, index_col: str, freq: str | None):
     return df
 
 
+def _coerce_time_level(series, freq: str | None):
+    """Coerce a long-format time column to an sktime-valid time index level."""
+    import pandas as pd
+
+    if pd.api.types.is_integer_dtype(series):
+        return series
+    try:
+        stamps = pd.to_datetime(series)
+    except (ValueError, TypeError):
+        raise CliError(
+            "data_error",
+            f"time column {series.name!r} is neither integer nor datetime",
+            hint="pass --time-col to name the right column",
+        ) from None
+    try:
+        return stamps.dt.to_period(freq) if freq else stamps.dt.to_period()
+    except (ValueError, AttributeError):
+        # frequency not inferable: a DatetimeIndex level is valid for sktime too
+        return stamps
+
+
+def _read_long(df, id_col: str | None, time_col: str | None, freq: str | None):
+    """Build a MultiIndex Panel/Hierarchical frame from long-format rows.
+
+    ``--id-col`` accepts a comma-separated list; more than one id level makes
+    the result Hierarchical rather than Panel.
+    """
+    id_cols = (
+        [c.strip() for c in id_col.split(",") if c.strip()]
+        if id_col
+        else [str(df.columns[0])]
+    )
+    time_col = time_col or str(df.columns[len(id_cols)])
+    for col in [*id_cols, time_col]:
+        if col not in df.columns:
+            raise CliError(
+                "not_found",
+                f"column {col!r} not in file",
+                hint=f"available columns: {', '.join(map(str, df.columns))}",
+            )
+    df = df.copy()
+    df[time_col] = _coerce_time_level(df[time_col], freq)
+    df = df.set_index([*id_cols, time_col]).sort_index()
+    return ReadData(df, None, "panel" if len(id_cols) == 1 else "hierarchical")
+
+
 def read_any(
     path: str | Path,
     input_format: str | None = None,
@@ -146,13 +192,7 @@ def read_any(
             return ReadData(df.iloc[:, 0], None, "series")
         return ReadData(df, None, "series")
     if long:
-        id_col = id_col or df.columns[0]
-        time_col = time_col or df.columns[1]
-        for col in (id_col, time_col):
-            if col not in df.columns:
-                raise CliError("not_found", f"column {col!r} not in file")
-        df = df.set_index([id_col, time_col]).sort_index()
-        return ReadData(df, None, "panel")
+        return _read_long(df, id_col, time_col, freq)
 
     df = _set_time_index(df, index_col, freq)
     if df.shape[1] == 1:

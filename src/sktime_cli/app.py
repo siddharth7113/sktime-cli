@@ -65,7 +65,17 @@ def _root(
 
 def _register_commands() -> None:
     """Attach command groups; separate function keeps import order explicit."""
-    from sktime_cli.commands import data, datasets, env, model, registry, run
+    from sktime_cli.commands import (
+        catalogues,
+        check,
+        data,
+        datasets,
+        env,
+        metrics,
+        model,
+        registry,
+        run,
+    )
 
     app.command("version")(env.version)
     app.command("env")(env.env_info)
@@ -73,9 +83,16 @@ def _register_commands() -> None:
     app.add_typer(env.cache_app, name="cache")
     app.add_typer(registry.app, name="registry", help="Discover sktime objects.")
     app.add_typer(datasets.app, name="datasets", help="List and fetch datasets.")
+    app.add_typer(
+        catalogues.app, name="catalogues", help="Browse benchmark catalogues."
+    )
     app.add_typer(data.app, name="data", help="Inspect, convert, split data files.")
-    app.add_typer(run.app, name="run", help="One-shot fit/predict/evaluate.")
+    app.add_typer(
+        run.app, name="run", help="One-shot fit/predict/transform/detect/evaluate."
+    )
     app.add_typer(model.app, name="model", help="Inspect saved model artifacts.")
+    app.add_typer(metrics.app, name="metrics", help="List metrics and score results.")
+    app.command("check")(check.check)
 
 
 _register_commands()

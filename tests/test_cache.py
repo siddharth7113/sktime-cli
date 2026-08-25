@@ -33,7 +33,24 @@ def test_corrupt_cache_is_rebuilt(cli_home):
     cache_file.write_text("{corrupt")
     records = _cache.get_registry()
     assert len(records) > 500
-    assert json.loads(cache_file.read_text())["schema_version"] == 1
+    assert (
+        json.loads(cache_file.read_text())["schema_version"]
+        == _cache.REGISTRY_SCHEMA_VERSION
+    )
+
+
+def test_stale_schema_version_is_discarded(cli_home):
+    """A cache written by an older sktime-cli must be rebuilt, not deserialized."""
+    _cache.get_registry()
+    cache_file = next((cli_home / "registry").glob("registry-*.json"))
+    cache_file.write_text(
+        json.dumps({"schema_version": -1, "records": [{"name": "Bogus"}]})
+    )
+    records = _cache.get_registry()
+    assert len(records) > 500
+    assert not any(r["name"] == "Bogus" for r in records)
+    payload = json.loads(cache_file.read_text())
+    assert payload["schema_version"] == _cache.REGISTRY_SCHEMA_VERSION
 
 
 def test_lookup():
