@@ -80,6 +80,12 @@ in 0.0.1, reaching about 40% of the registry; it now dispatches on 8, reaching
 - Docstrings across the source tree follow the numpydoc convention the project
   configures for ruff, with Parameters, Returns and Raises sections on the
   functions that take or return anything non-obvious.
+- The agent skill moved from `skills/sktime-cli/SKILL.md` into the package, at
+  `src/sktime_cli/.agents/skills/sktime-cli/SKILL.md`, which is the path
+  libraries use to bundle [agent skills](https://agentskills.io). Installing
+  `sktime-cli` now installs the skill with it, and
+  `uvx library-skills --claude` links it into `.claude/skills/` without a
+  checkout. The wheel no longer force-includes it at `sktime_cli/SKILL.md`.
 
 ### Fixed
 

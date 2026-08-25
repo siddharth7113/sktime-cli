@@ -21,6 +21,7 @@ sktime_cli/
 │   ├── _io.py                # csv/parquet/json/.ts/.tsf/.arff read & write, --fh parsing
 │   ├── _datasets.py          # dataset name resolution and loaders (builtin/ucr/tsf/fpp3)
 │   ├── _models.py            # model .zip save/load
+│   ├── .agents/skills/sktime-cli/SKILL.md   # agent-facing contract, shipped in the wheel
 │   └── commands/
 │       ├── registry.py       # search · describe · tags · types
 │       ├── datasets.py       # list · describe · load
@@ -28,7 +29,6 @@ sktime_cli/
 │       ├── run.py            # fit · predict · fit-predict · evaluate
 │       ├── model.py          # inspect
 │       └── env.py            # version · env · doctor · cache info/clear
-├── skills/sktime-cli/SKILL.md  # agent-facing contract, also shipped inside the wheel
 ├── tests/                    # pytest + Typer CliRunner, network tests marked
 └── docs/                     # this documentation site
     ├── conf.py               # Sphinx configuration
