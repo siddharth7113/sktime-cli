@@ -2,39 +2,49 @@
 
 # sktime-cli
 
-**The command line for [sktime](https://github.com/sktime/sktime) : built for AI agents and humans.**
+**The command line for [sktime](https://github.com/sktime/sktime), built for AI agents and humans.**
 
-Discover estimators, fetch datasets, inspect time series files, and run
+Search estimators, fetch datasets, inspect time series files, and run
 fit / predict / evaluate workflows straight from your shell.
 
-![Python](https://img.shields.io/badge/python-3.10%E2%80%933.14-blue)
-![License](https://img.shields.io/badge/license-BSD--3--Clause-green)
-![Status](https://img.shields.io/badge/status-alpha-orange)
+[![PyPI](https://img.shields.io/pypi/v/sktime-cli?color=1a6690)](https://pypi.org/project/sktime-cli/)
+[![Python](https://img.shields.io/pypi/pyversions/sktime-cli)](https://pypi.org/project/sktime-cli/)
+[![Docs](https://img.shields.io/readthedocs/sktime-cli)](https://sktime-cli.readthedocs.io)
+[![CI](https://github.com/siddharth7113/sktime-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/siddharth7113/sktime-cli/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-BSD--3--Clause-green)](https://github.com/siddharth7113/sktime-cli/blob/main/LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Built on sktime](https://img.shields.io/badge/built%20on-sktime-1a6690)](https://github.com/sktime/sktime)
 
-<img src="docs/assets/demo.svg" alt="sktime-cli demo: registry search, datasets load, run fit, run predict" width="900">
+<img src="https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/docs/assets/demo.svg" alt="Terminal session running registry search, datasets load, run fit, and run predict" width="900">
+
+**[Read the documentation](https://sktime-cli.readthedocs.io)**
 
 </div>
 
 ---
 
-## Highlights
+## Why sktime-cli
 
-- **Stateless, one-shot commands** - every invocation is a single process:
-  read files, call sktime, write results, exit with a meaningful code.
-  State lives on disk only, Hugging Face CLI style.
-- **Registry-native discovery** - `registry search` filters sktime's full
-  estimator registry by scitype and capability tags, served from a disk cache
-  so warm searches are instant.
-- **Estimator spec strings** -models are named the way you'd write them in
-  Python: `"NaiveForecaster(sp=12)"`, with pipelines via `*`, ensembles via
-  `+`, and multiplexers via `|`.
-- **Any format in, any format out** - csv, parquet, json, `.ts`, `.tsf`,
-  `.arff`; every command speaks `--format human|agent|json|quiet`.
-- **Agent-first contract** - one JSON document on stdout, structured errors
-  on stderr, stable exit codes, and a ready-to-drop-in
-  [agent skill](skills/sktime-cli/SKILL.md).
+Every command is one process. It reads files or names, calls sktime, writes
+results, and exits with a meaningful code. No state is hidden in a session, so
+the same command behaves the same way in a shell, a Makefile, a CI job, or an
+AI agent.
+
+- **Stateless commands.** No sessions, handles, daemons, or background jobs.
+  Fitted models are `.zip` files you can see with `ls`, and the rest of the
+  state lives under one cache directory, the same model the Hugging Face CLI
+  uses.
+- **Registry-native discovery.** `registry search` filters sktime's full
+  estimator registry by scitype and capability tag, served from a disk cache,
+  so repeat searches don't pay for the crawl again.
+- **Estimators named the way you write them.** Models are constructor
+  expressions: `"NaiveForecaster(sp=12)"`, with pipelines via `*`, ensembles
+  via `+`, and multiplexers via `|`.
+- **Many formats in, many formats out.** csv, parquet, json, `.ts`, `.tsf`,
+  and `.arff` go in. Every command reads
+  `--format human|agent|json|quiet` on the way out.
+- **Errors that name the fix.** One JSON document on stdout, structured errors
+  on stderr, stable exit codes, and a
+  [ready-to-use agent skill](https://github.com/siddharth7113/sktime-cli/blob/main/skills/sktime-cli/SKILL.md).
 
 ## Installation
 
@@ -42,97 +52,108 @@ fit / predict / evaluate workflows straight from your shell.
 uv tool install sktime-cli   # or: pip install sktime-cli
 ```
 
-Verify your setup and see which optional dependencies are available:
+Check the setup and see which optional dependencies are available:
 
 ```bash
 sktime-cli doctor
 ```
 
 <div align="center">
-<img src="docs/assets/doctor.svg" alt="sktime-cli doctor output" width="900">
+<img src="https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/docs/assets/doctor.svg" alt="Output of sktime-cli doctor, listing sktime version, cache state, and optional dependencies" width="900">
 </div>
 
 ## Quickstart
 
 ```bash
-# what can I use?
+# What can I use?
 sktime-cli registry search forecaster -t capability:missing_values=true
 sktime-cli registry describe NaiveForecaster
 
-# get data
+# Get data.
 sktime-cli datasets load airline --output airline.csv
 sktime-cli data inspect airline.csv
 
-# fit, predict, evaluate — estimators are given as sktime spec strings
+# Fit, predict, evaluate. Estimators are given as sktime spec strings.
 sktime-cli run fit "NaiveForecaster(sp=12)" --data airline.csv --model-out model.zip
 sktime-cli run predict --model model.zip --fh 1:12
 sktime-cli run evaluate "NaiveForecaster(sp=12)" --data airline.csv --fh 1:12 \
   --metric MeanAbsolutePercentageError
 ```
 
-## Command overview
+For a longer walkthrough, see the
+[quickstart](https://sktime-cli.readthedocs.io/en/latest/quickstart.html).
+
+## Commands
 
 | Group | Commands | What it does |
 |---|---|---|
-| `registry` | `search` · `describe` · `tags` · `types` | Discover sktime estimators by scitype, name, and capability tags |
+| `registry` | `search` · `describe` · `tags` · `types` | Find sktime estimators by scitype, name, and capability tag |
 | `datasets` | `list` · `describe` · `load` | Browse and fetch built-in, UCR/UEA, Monash, and fpp3 datasets |
-| `data` | `inspect` · `convert` · `split` | Detect mtypes/scitypes, convert formats, temporal train/test split |
+| `data` | `inspect` · `convert` · `split` | Detect mtypes and scitypes, convert formats, split temporally |
 | `run` | `fit` · `predict` · `fit-predict` · `evaluate` | One-shot workflows for forecasting and classification |
-| `model` | `inspect` | Look inside a saved model artifact; round-trip its spec |
+| `model` | `inspect` | Look inside a saved model artifact and round-trip its spec |
 | *(top level)* | `version` · `env` · `doctor` · `cache` | Environment info, health check, workspace management |
 
-See the [CLI reference](docs/cli-reference.md) for every option.
+Every option is listed in the
+[CLI reference](https://sktime-cli.readthedocs.io/en/latest/reference/cli.html),
+which is generated from the application itself.
 
 ## Built for AI agents
 
-`sktime-cli` treats agents as first-class users. Add `--json` to any command
-and you get exactly one parseable JSON document on stdout; errors are JSON on
-stderr with stable codes and actionable hints.
+Add `--json` to any command and you get exactly one parseable JSON document on
+stdout. Errors are JSON on stderr, with stable codes and a `hint` field that
+usually contains the fix.
 
 <div align="center">
-<img src="docs/assets/agent.svg" alt="sktime-cli JSON output and structured error with exit code" width="900">
+<img src="https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/docs/assets/agent.svg" alt="JSON output from a command next to a structured error record and its exit code" width="900">
 </div>
 
-| exit | meaning |
+| Exit | Meaning |
 |---|---|
-| `0` | success |
-| `1` | library or unexpected failure |
-| `2` | usage error |
-| `3` | missing optional dependency (the hint says what to install) |
-| `4` | estimator / dataset / model not found |
-| `5` | data validation or spec error |
+| `0` | Success |
+| `1` | Library or unexpected failure |
+| `2` | Usage error |
+| `3` | Missing optional dependency, and the hint says what to install |
+| `4` | Estimator, dataset, or model not found |
+| `5` | Data validation or spec error |
 
-The full agent-facing contract and task-oriented workflows live in
-[skills/sktime-cli/SKILL.md](skills/sktime-cli/SKILL.md) — drop the `skills/`
-folder into your agent's skill directory (e.g. `.claude/skills/`) and your
-agent knows how to drive the CLI. The same file ships inside the wheel.
+The full agent contract and task recipes live in
+[skills/sktime-cli/SKILL.md](https://github.com/siddharth7113/sktime-cli/blob/main/skills/sktime-cli/SKILL.md). Copy the `skills/`
+directory into your agent's skill directory, such as `.claude/skills/`, and
+the agent knows how to drive the CLI. The same file ships inside the wheel.
+
+For the details, see
+[using sktime-cli from an agent](https://sktime-cli.readthedocs.io/en/latest/guide/agents.html).
 
 ## Documentation
 
-| Document | Contents |
-|---|---|
-| [Architecture](docs/architecture.md) | Repository layout, module map, dependency layering, data flow |
-| [Design](docs/design.md) | Design decisions: state model, output contract, error model, spec engine, caching |
-| [CLI reference](docs/cli-reference.md) | Full command tree with options |
-| [Agent skill](skills/sktime-cli/SKILL.md) | The contract agents are given |
-| [Plan](PLAN.md) | v0.0.1 milestones and roadmap |
+Full documentation is at
+**[sktime-cli.readthedocs.io](https://sktime-cli.readthedocs.io)**:
 
-## Relation to sktime-mcp
-
-`sktime-cli` is the CLI sibling of
-[sktime-mcp](https://github.com/sktime/sktime-mcp). The command vocabulary
-mirrors its tool names (`registry search` ~ `query_registry`,
-`registry describe` ~ `describe_component`, `run fit`/`predict`/`evaluate`),
-so agent knowledge transfers between the two.
+- [Quickstart](https://sktime-cli.readthedocs.io/en/latest/quickstart.html)
+- [Finding estimators](https://sktime-cli.readthedocs.io/en/latest/guide/discovery.html)
+- [Working with data](https://sktime-cli.readthedocs.io/en/latest/guide/data.html)
+- [Fitting and evaluating models](https://sktime-cli.readthedocs.io/en/latest/guide/modeling.html)
+- [Output formats and errors](https://sktime-cli.readthedocs.io/en/latest/guide/output.html)
+- [CLI reference](https://sktime-cli.readthedocs.io/en/latest/reference/cli.html)
+- [Architecture](https://sktime-cli.readthedocs.io/en/latest/contributing/architecture.html)
+  and [design decisions](https://sktime-cli.readthedocs.io/en/latest/contributing/design.html)
 
 ## Status
 
-**v0.0.1 — early alpha.** Discovery and one-shot runs are complete; see
-[PLAN.md](PLAN.md) for what's deferred to v0.0.2+. An adversarial agent
-benchmark suite (foundation + hard tiers, provider-neutral run records,
-scoring keys) is being developed on the
-[`feat/adversarial-benchmark`](../../tree/feat/adversarial-benchmark) branch.
+`sktime-cli` is an independent, unofficial command-line client for sktime. It
+is not maintained by or affiliated with the sktime project.
+
+Version 0.0.1 is an early alpha release. Discovery and one-shot runs work, and
+the [roadmap](https://sktime-cli.readthedocs.io/en/latest/roadmap.html) lists
+what comes next.
+
+## Contributing
+
+Issues and pull requests are welcome. To set up a development environment, run
+the checks, and build the docs, see
+[Contributing](https://sktime-cli.readthedocs.io/en/latest/contributing/index.html).
 
 ## License
 
-[BSD 3-Clause](LICENSE), consistent with sktime.
+[BSD 3-Clause](https://github.com/siddharth7113/sktime-cli/blob/main/LICENSE), matching sktime.

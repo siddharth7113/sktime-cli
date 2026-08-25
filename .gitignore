@@ -24,3 +24,9 @@ build/
 
 # personal Claude Code settings
 .claude/settings.local.json
+
+# internal working notes, not part of the published project
+PLAN.md
+
+# sphinx build output
+docs/_build/
