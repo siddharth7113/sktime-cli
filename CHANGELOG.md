@@ -4,7 +4,7 @@ All notable changes to `sktime-cli` are recorded here. The project follows
 [semantic versioning](https://semver.org/), with the caveat that `0.0.x`
 releases may break the command surface while the design settles.
 
-## 0.0.2 (unreleased)
+## 0.0.2 (2026-08-25)
 
 The framework-coverage release. `run` dispatched on 4 of sktime's 25 scitypes
 in 0.0.1, reaching about 40% of the registry; it now dispatches on 8, reaching
