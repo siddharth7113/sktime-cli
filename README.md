@@ -150,10 +150,31 @@ usually contains the fix.
 | `4` | Estimator, dataset, or model not found |
 | `5` | Data validation or spec error |
 
-The full agent contract and task recipes live in
-[skills/sktime-cli/SKILL.md](https://github.com/siddharth7113/sktime-cli/blob/main/skills/sktime-cli/SKILL.md).
-Copy the `skills/` directory into your agent's skill directory, such as `.claude/skills/`, and
-the agent knows how to drive the CLI. The same file ships inside the wheel.
+### Install the skill
+
+The full agent contract and task recipes live in an
+[agent skill](https://github.com/siddharth7113/sktime-cli/blob/main/src/sktime_cli/.agents/skills/sktime-cli/SKILL.md)
+that ships inside the package, at the location package-bundled skills use. Add
+`sktime-cli` to the project, then let
+[library-skills](https://library-skills.io) find it:
+
+```bash
+uv add sktime-cli                  # or: pip install sktime-cli
+uvx library-skills --claude        # installs the skills you pick from your packages
+```
+
+That symlinks the skill into `.agents/skills/`, and `--claude` adds
+`.claude/skills/` for Claude Code. Your agent then knows how to drive the CLI.
+To skip the prompt, name it: `uvx library-skills --claude --skill sktime-cli`.
+
+If you installed the CLI as a standalone tool rather than as a project
+dependency, copy the file instead:
+
+```bash
+mkdir -p ~/.claude/skills/sktime-cli
+curl -fsSL https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/src/sktime_cli/.agents/skills/sktime-cli/SKILL.md \
+  -o ~/.claude/skills/sktime-cli/SKILL.md
+```
 
 For the details, see
 [using sktime-cli from an agent](https://sktime-cli.readthedocs.io/en/latest/guide/agents.html).

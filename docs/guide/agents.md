@@ -33,24 +33,65 @@ errors](output.md).
 
 ## Install the skill file
 
-The repository ships an agent skill at `skills/sktime-cli/SKILL.md`. It
-documents the contract and gives task recipes for discovery, data preparation,
-forecasting, backtesting, and classification.
+`sktime-cli` bundles an [agent skill](https://agentskills.io). It documents the
+contract and gives task recipes for discovery, data preparation, forecasting,
+backtesting, and classification. Installing the package installs the skill with
+it, at the path package-bundled skills use:
 
-To give an agent the skill, copy the `skills/` directory into the agent's
-skill directory. For Claude Code, that's `.claude/skills/`:
-
-```bash
-git clone https://github.com/siddharth7113/sktime-cli
-cp -r sktime-cli/skills/sktime-cli .claude/skills/
+```text
+<site-packages>/sktime_cli/.agents/skills/sktime-cli/SKILL.md
 ```
 
-The same file ships inside the wheel at `sktime_cli/SKILL.md`, so an installed
-environment carries its own agent documentation. To find it:
+### From a project dependency
+
+Add `sktime-cli` to the project, then let
+[library-skills](https://library-skills.io) discover the skills its packages
+bundle:
 
 ```bash
-python -c "import sktime_cli, pathlib; print(pathlib.Path(sktime_cli.__file__).parent / 'SKILL.md')"
+uv add sktime-cli
+uvx library-skills --claude
 ```
+
+`library-skills` lists the skills it found and installs the ones you select, by
+symlinking them into `.agents/skills/`, the agent-neutral directory. `--claude`
+adds a second link under `.claude/skills/`, which is where Claude Code looks.
+To skip the prompt, name the skill:
+
+```bash
+uvx library-skills --claude --skill sktime-cli
+```
+
+The links are relative and point into the installed package, so upgrading
+`sktime-cli` upgrades the skill with it, and the links can be committed. Re-run
+`uvx library-skills --claude` after changing dependencies to reconcile them.
+
+### From a standalone install
+
+`library-skills` reads the project's environment, so a CLI installed with
+`uv tool install` is out of its reach. Copy the file into your agent's skill
+directory instead. For Claude Code, that is `~/.claude/skills` for every
+project, or `.claude/skills` for one:
+
+```bash
+mkdir -p ~/.claude/skills/sktime-cli
+curl -fsSL https://raw.githubusercontent.com/siddharth7113/sktime-cli/main/src/sktime_cli/.agents/skills/sktime-cli/SKILL.md \
+  -o ~/.claude/skills/sktime-cli/SKILL.md
+```
+
+A copy made this way is a snapshot of `main`, so repeat it after upgrading the
+CLI. In an environment where `sktime_cli` is importable, you can copy the
+version-matched file instead of downloading it:
+
+```bash
+python -c "import sktime_cli, pathlib; print(pathlib.Path(sktime_cli.__file__).parent / '.agents/skills/sktime-cli/SKILL.md')"
+```
+
+### For other agents
+
+The skill is a single Markdown file with YAML frontmatter, so an agent that
+reads one instructions file can use it directly: point that file at the path
+above, or paste the contents in.
 
 ## Why the design suits agents
 

@@ -66,9 +66,6 @@ sktime = { path = "../sktime", editable = true }
 [tool.hatch.build.targets.wheel]
 packages = ["src/sktime_cli"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"skills/sktime-cli/SKILL.md" = "sktime_cli/SKILL.md"
-
 [tool.pytest.ini_options]
 addopts = "-m 'not network'"
 markers = ["network: tests that download data from the internet"]

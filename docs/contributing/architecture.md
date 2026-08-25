@@ -18,18 +18,25 @@ sktime_cli/
 │   ├── _output.py            # format dispatch: human/agent/json/quiet emitters
 │   ├── _cache.py             # workspace dirs + registry disk cache
 │   ├── _specs.py             # "NaiveForecaster(sp=12)" → estimator instance
+│   ├── _scitypes.py          # which sktime scitypes `run` dispatches on, classified once
 │   ├── _io.py                # csv/parquet/json/.ts/.tsf/.arff read & write, --fh parsing
+│   ├── _input.py             # --data (path or dataset id) → the y/X a workflow needs
+│   ├── _frames.py            # flattens MultiIndex forecasts and segments into long form
 │   ├── _datasets.py          # dataset name resolution and loaders (builtin/ucr/tsf/fpp3)
 │   ├── _models.py            # model .zip save/load
+│   ├── .agents/skills/sktime-cli/SKILL.md   # agent-facing contract, shipped in the wheel
 │   └── commands/
 │       ├── registry.py       # search · describe · tags · types
 │       ├── datasets.py       # list · describe · load
+│       ├── catalogues.py     # list · get
 │       ├── data.py           # inspect · convert · split
-│       ├── run.py            # fit · predict · fit-predict · evaluate
+│       ├── run.py            # fit · predict · fit-predict · transform · detect · evaluate
 │       ├── model.py          # inspect
+│       ├── metrics.py        # list · score
+│       ├── check.py          # validate an object against sktime's API contract
 │       └── env.py            # version · env · doctor · cache info/clear
-├── skills/sktime-cli/SKILL.md  # agent-facing contract, also shipped inside the wheel
 ├── tests/                    # pytest + Typer CliRunner, network tests marked
+├── scripts/scitype_coverage.py  # regenerates the scitype coverage breakdown
 └── docs/                     # this documentation site
     ├── conf.py               # Sphinx configuration
     ├── _ext/typer_cli.py     # generates the CLI reference from the live app
@@ -47,9 +54,14 @@ graph TD
     APP --> CMD["commands/*"]
     CMD --> GUARD["_guard.py"]
     CMD --> SPECS["_specs.py"]
+    CMD --> SCI["_scitypes.py"]
+    CMD --> INPUT["_input.py"]
+    CMD --> FRAMES["_frames.py"]
     CMD --> IO["_io.py"]
     CMD --> DS["_datasets.py"]
     CMD --> MODELS["_models.py"]
+    INPUT --> IO
+    INPUT --> DS
     SPECS --> CACHE["_cache.py"]
     DS --> CACHE
     MODELS --> CACHE
@@ -58,8 +70,13 @@ graph TD
     GUARD --> ERR["_errors.py"]
     CACHE --> ERR
     IO --> ERR
+    INPUT --> ERR
+    SCI --> ERR
     OUT --> ERR
 ```
+
+`_frames.py` imports nothing from the package: it is pure pandas reshaping,
+and a leaf like `_errors.py` and `_output.py`.
 
 A deliberate import discipline keeps startup fast: **the only third-party
 module imported at module level is `typer`**. Every sktime, pandas, numpy,
@@ -76,7 +93,10 @@ rich, and platformdirs import is function-local, so `sktime-cli --help` and
 | `_output.py` | Rendering for all five formats and the stdout/stderr split | `emit_record`, `emit_table`, `emit_frame`, `print_error`, `resolve_format` |
 | `_cache.py` | Workspace resolution and the registry disk cache | `cli_home()`, `get_registry()`, `lookup()`, `import_object()` |
 | `_specs.py` | Spec strings → estimator instances; `--set` overrides; metric/CV resolution | `build_estimator()`, `apply_sets()`, `resolve_metric()`, `resolve_cv()` |
+| `_scitypes.py` | Which sktime scitypes `run` dispatches on, and why the rest are out of scope. Classified exactly once, asserted total by the tests | `handler_for()` |
 | `_io.py` | File formats sktime doesn't handle itself; index conventions; `--fh` grammar | `read_any()`, `write_any()`, `parse_fh()`, `parse_size()` |
+| `_input.py` | `--data` (a path or a dataset id) → the objects a workflow needs; which slot each fills is the estimator's call, not the file's | `load()`, `as_endogenous()` |
+| `_frames.py` | Reshaping sktime results that don't survive a CSV round trip: MultiIndex probabilistic forecasts, `pd.Interval` segments | `melt()`, `widen()`, `segments_to_frame()`, `to_frame()` |
 | `_datasets.py` | Dataset ID grammar (`airline`, `ucr:ArrowHead`, …) and loader normalization | `resolve()`, `load()`, `listing()`, `BUILTIN` |
 | `_models.py` | Model artifact `.zip` in/out | `save_model()`, `load_model()`, `estimator_scitype()` |
 | `commands/*` | Option surfaces and orchestration only, no domain logic | one `typer.Typer` per group |
@@ -95,9 +115,11 @@ Taking `sktime-cli run fit "NaiveForecaster(sp=12)" --data airline.csv
 3. **Spec engine**: `_specs.build_estimator` parses the spec with `ast`,
    resolves `NaiveForecaster` against the cached registry, imports just that
    module, and evaluates the expression in a builtins-free namespace.
-4. **Data loading**: `run._load_input` treats `--data` polymorphically: an
+4. **Data loading**: `_input.load` treats `--data` polymorphically: an
    existing path is read via `_io.read_any` (index conventions applied),
-   anything else resolves as a dataset name via `_datasets.resolve`.
+   anything else resolves as a dataset name via `_datasets.resolve`. It
+   returns a neutral container; `_input.as_endogenous` then decides which slot
+   each object fills, from the estimator's scitype rather than from the file.
 5. **Fit dispatch**: forecasters get `fit(y, X, fh)`; panel scitypes
    (classifier/regressor/clusterer) get `fit(X, y)`.
 6. **Artifact**: `_models.save_model` writes the `.zip` (defaulting into the
