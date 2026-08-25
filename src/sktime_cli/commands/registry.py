@@ -1,4 +1,4 @@
-"""``sktime-cli registry`` — discover sktime objects (mirrors query_registry)."""
+"""``sktime-cli registry``: discover sktime objects (mirrors query_registry)."""
 
 from __future__ import annotations
 

@@ -1,0 +1,13 @@
+/* Terminal captures are wide SVGs; keep them inside the content column. */
+.terminal-capture img {
+  width: 100%;
+  max-width: 900px;
+  border-radius: 6px;
+  display: block;
+  margin: 1.5rem auto;
+}
+
+/* The generated CLI reference is dense; give its option lists room. */
+dl.simple > dd {
+  margin-bottom: 0.6rem;
+}

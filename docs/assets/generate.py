@@ -61,7 +61,7 @@ class Scene:
 SCENES = [
     Scene(
         filename="demo.svg",
-        title="sktime-cli — discover, fit, predict",
+        title="sktime-cli: discover, fit, predict",
         animate=True,
         steps=[
             Step(
@@ -107,7 +107,7 @@ SCENES = [
     ),
     Scene(
         filename="agent.svg",
-        title="sktime-cli — machine-readable mode",
+        title="sktime-cli: machine-readable mode",
         steps=[
             Step(
                 "sktime-cli run predict --model model.zip --fh 1:3 --json",

@@ -1,4 +1,4 @@
-"""``sktime-cli run`` — one-shot fit / predict / fit-predict / evaluate."""
+"""``sktime-cli run``: one-shot fit / predict / fit-predict / evaluate."""
 
 from __future__ import annotations
 
@@ -153,8 +153,12 @@ def fit(
     data: str = DATA_OPT,
     target: str | None = typer.Option(None, "--target", help="y column in --data."),
     exog: Path | None = typer.Option(None, "--exog", help="Exogenous X file."),
-    index_col: str = typer.Option("auto", "--index-col"),
-    freq: str | None = typer.Option(None, "--freq"),
+    index_col: str = typer.Option(
+        "auto", "--index-col", help="Time index column: a name, auto, or none."
+    ),
+    freq: str | None = typer.Option(
+        None, "--freq", help="Pandas frequency for the index, e.g. M, D."
+    ),
     fh: str | None = typer.Option(None, "--fh", help="Horizon, e.g. 1:12."),
     set_: list[str] = SET_OPT,
     model_out: Path | None = typer.Option(
@@ -210,16 +214,22 @@ def fit_predict(
         ..., help='Estimator spec, e.g. "NaiveForecaster(sp=12)".'
     ),
     data: str = DATA_OPT,
-    target: str | None = typer.Option(None, "--target"),
-    exog: Path | None = typer.Option(None, "--exog"),
-    index_col: str = typer.Option("auto", "--index-col"),
-    freq: str | None = typer.Option(None, "--freq"),
+    target: str | None = typer.Option(None, "--target", help="y column in --data."),
+    exog: Path | None = typer.Option(None, "--exog", help="Exogenous X file."),
+    index_col: str = typer.Option(
+        "auto", "--index-col", help="Time index column: a name, auto, or none."
+    ),
+    freq: str | None = typer.Option(
+        None, "--freq", help="Pandas frequency for the index, e.g. M, D."
+    ),
     fh: str | None = typer.Option(None, "--fh", help="Horizon, e.g. 1:12."),
     set_: list[str] = SET_OPT,
     model_out: Path | None = typer.Option(
         None, "--model-out", help="Also persist the fitted model."
     ),
-    output: Path | None = typer.Option(None, "--output", "-o"),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Write predictions here instead of stdout."
+    ),
     format_: OutputFormat = FORMAT_OPT,
     json_: bool = JSON_OPT,
 ) -> None:
@@ -257,10 +267,14 @@ def evaluate_cmd(
         ..., help='Forecaster spec, e.g. "NaiveForecaster(sp=12)".'
     ),
     data: str = DATA_OPT,
-    target: str | None = typer.Option(None, "--target"),
-    exog: Path | None = typer.Option(None, "--exog"),
-    index_col: str = typer.Option("auto", "--index-col"),
-    freq: str | None = typer.Option(None, "--freq"),
+    target: str | None = typer.Option(None, "--target", help="y column in --data."),
+    exog: Path | None = typer.Option(None, "--exog", help="Exogenous X file."),
+    index_col: str = typer.Option(
+        "auto", "--index-col", help="Time index column: a name, auto, or none."
+    ),
+    freq: str | None = typer.Option(
+        None, "--freq", help="Pandas frequency for the index, e.g. M, D."
+    ),
     cv: str | None = typer.Option(
         None,
         "--cv",

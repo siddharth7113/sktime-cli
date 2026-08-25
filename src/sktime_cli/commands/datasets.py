@@ -1,4 +1,4 @@
-"""``sktime-cli datasets`` — list and fetch datasets (mirrors list_available_data)."""
+"""``sktime-cli datasets``: list and fetch datasets (mirrors list_available_data)."""
 
 from __future__ import annotations
 

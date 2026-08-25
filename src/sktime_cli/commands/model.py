@@ -1,4 +1,4 @@
-"""``sktime-cli model`` — inspect saved model artifacts."""
+"""``sktime-cli model``: inspect saved model artifacts."""
 
 from __future__ import annotations
 

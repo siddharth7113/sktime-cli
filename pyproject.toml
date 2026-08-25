@@ -31,10 +31,21 @@ classifiers = [
 ]
 
 [project.urls]
+Documentation = "https://sktime-cli.readthedocs.io"
 Repository = "https://github.com/siddharth7113/sktime-cli"
+Issues = "https://github.com/siddharth7113/sktime-cli/issues"
+Changelog = "https://github.com/siddharth7113/sktime-cli/releases"
 
 [project.optional-dependencies]
 parquet = ["pyarrow>=14"]
+docs = [
+  "sphinx>=7.2",
+  "myst-parser>=3.0",
+  "pydata-sphinx-theme>=0.15",
+  "sphinx-copybutton>=0.5",
+  "sphinx-design>=0.6",
+  "sphinxcontrib-mermaid>=0.9",
+]
 
 [project.scripts]
 sktime-cli = "sktime_cli.app:main"
