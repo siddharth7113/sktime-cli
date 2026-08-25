@@ -32,19 +32,32 @@ INPUT_OPTS = {
     "time_col": typer.Option(None, "--time-col", help="Time column (long format)."),
 }
 
-_METADATA_KEYS = [
-    "is_univariate",
-    "n_features",
-    "feature_names",
-    "is_equally_spaced",
-    "has_nans",
-    "n_instances",
-    "n_panels",
-    "is_one_series",
-]
+# `scitype` and `mtype` are reported as top-level fields, so they are not
+# repeated inside the metadata block. Everything else the check returns is
+# passed through, so a field added upstream appears without a change here.
+_PROMOTED_METADATA = ("scitype", "mtype")
 
 
 def _scitype_check(obj):
+    """Ask sktime to classify an object and describe it.
+
+    Parameters
+    ----------
+    obj : pd.Series or pd.DataFrame
+        The data to classify.
+
+    Returns
+    -------
+    dict
+        sktime's metadata, including ``scitype``, ``mtype``, and whatever
+        descriptive fields the check computed.
+
+    Raises
+    ------
+    CliError
+        ``data_error`` when the object is not a recognized sktime container,
+        carrying sktime's own explanation.
+    """
     from sktime.datatypes import check_is_scitype
 
     valid, msg, meta = check_is_scitype(
@@ -85,7 +98,11 @@ def inspect(
         "scitype": meta.get("scitype"),
         "mtype": meta.get("mtype"),
         "shape": list(getattr(data.obj, "shape", [len(data.obj)])),
-        "metadata": {k: meta[k] for k in _METADATA_KEYS if k in meta},
+        "metadata": {
+            key: value
+            for key, value in sorted(meta.items())
+            if key not in _PROMOTED_METADATA
+        },
     }
     index = data.obj.index
     record["index"] = {
@@ -240,7 +257,28 @@ def split(
 
 
 def _emit_folds(y, cv: str, path: Path, train_out, test_out, fmt: OutputFormat) -> None:
-    """Write one train/test file pair per cross-validation fold, plus a manifest."""
+    """Write one train/test file pair per cross-validation fold.
+
+    Parameters
+    ----------
+    y : pd.Series or pd.DataFrame
+        The series to split.
+    cv : str
+        A splitter spec.
+    path : Path
+        The input file, used to name the outputs.
+    train_out, test_out : Path or None
+        Stems for the output names, defaulting to the input's.
+    fmt : OutputFormat
+        A concrete format from :func:`resolve_format`.
+
+    Raises
+    ------
+    CliError
+        ``usage`` if the spec is not a splitter; ``data_error`` if the
+        splitter produced no folds, which usually means the window is larger
+        than the series.
+    """
     from sktime_cli._specs import build_estimator
 
     splitter = build_estimator(cv)

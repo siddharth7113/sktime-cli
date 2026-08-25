@@ -30,40 +30,93 @@ from sktime_cli._errors import CliError, missing_dependency
 
 # datasets sktime ships only as loader functions, with no registry object.
 LOADER_ONLY: dict[str, dict[str, Any]] = {
-    "unit_test": {"loader": "load_unit_test", "task": "classification"},
-    "covid_3month": {"loader": "load_covid_3month", "task": "regression"},
+    "unit_test": {"loader": "load_unit_test", "task": "classifier"},
+    "covid_3month": {"loader": "load_covid_3month", "task": "regressor"},
 }
 
 REMOTE_SOURCES = ("ucr", "tsf", "fpp3")
 
 
+# The dataset scitypes sktime declares, read from the registry rather than
+# listed here, so a new dataset category is picked up automatically.
+def dataset_scitypes() -> tuple[str, ...]:
+    """Return every scitype sktime uses for datasets.
+
+    Read from the registry rather than listed here, so a dataset category
+    added upstream is recognized without a change.
+
+    Returns
+    -------
+    tuple of str
+        Scitype names, e.g. ``("dataset", "dataset_forecasting", ...)``.
+    """
+    from sktime.registry import BASE_CLASS_SCITYPE_LIST
+
+    return tuple(s for s in BASE_CLASS_SCITYPE_LIST if s.startswith("dataset"))
+
+
 def display_source(source: str) -> str:
-    """Name a source the way users select it: both local kinds are ``builtin``."""
+    """Name a source the way a user selects it.
+
+    Resolution distinguishes ``object`` from ``loader`` because they load
+    differently, but that split is an implementation detail: both are the
+    built-in catalogue as far as ``--source`` is concerned.
+
+    Parameters
+    ----------
+    source : str
+        A source from :func:`resolve`.
+
+    Returns
+    -------
+    str
+        ``"builtin"`` for either local kind, otherwise the source unchanged.
+    """
     return "builtin" if source in ("object", "loader") else source
 
 
-_REMOTE_TASK = {"ucr": "classification", "tsf": "forecasting", "fpp3": "forecasting"}
-
-# sktime `task_type` tag value -> the CLI's task vocabulary
-_TASK_FROM_TAG = {
-    "forecaster": "forecasting",
-    "classifier": "classification",
-    "regressor": "regression",
-}
+# Remote sources publish no metadata, so their task is stated here. The values
+# are sktime's own scitype names, the same vocabulary `registry search` uses,
+# so no translation table is needed for the datasets that do carry tags.
+_REMOTE_TASK = {"ucr": "classifier", "tsf": "forecaster", "fpp3": "forecaster"}
 
 
 def task_of(record: dict) -> str:
-    """Map a dataset object's ``task_type`` tag to the CLI task name."""
+    """Return which task a dataset is for.
+
+    The value is sktime's own scitype name, the same vocabulary
+    ``registry search`` takes, so no translation table is needed.
+
+    Parameters
+    ----------
+    record : dict
+        A registry record for a dataset object.
+
+    Returns
+    -------
+    str
+        ``"forecaster"``, ``"classifier"``, ``"regressor"``, or ``"unknown"``
+        when the object declares no task.
+    """
     tag = record["tags"].get("task_type")
     values = tag if isinstance(tag, list) else [tag]
-    for value in values:
-        if value in _TASK_FROM_TAG:
-            return _TASK_FROM_TAG[value]
-    return "unknown"
+    return next((v for v in values if v), "unknown")
 
 
 def object_index() -> dict[str, dict]:
-    """Map dataset id -> registry record, for every named sktime dataset object."""
+    """Build the catalogue of built-in datasets from the registry.
+
+    The catalogue is not maintained here: it is every dataset object sktime
+    registers, keyed by the ``name`` tag the object declares. A dataset added
+    upstream appears with no change to this project.
+
+    Returns
+    -------
+    dict
+        Dataset id to registry record. Objects with no ``name`` tag are
+        parameterized loaders such as ``UCRUEADataset``, and are reached
+        through a namespace prefix instead.
+    """
     index: dict[str, dict] = {}
     for record in _cache.get_registry():
         if not any(s.startswith("dataset") for s in record["scitypes"]):
@@ -75,6 +128,14 @@ def object_index() -> dict[str, dict]:
 
 
 def _remote_names() -> dict[str, list[str]]:
+    """List the dataset names each remote archive publishes.
+
+    Returns
+    -------
+    dict
+        Source name to sorted dataset names, for ``ucr``, ``tsf``, and
+        ``fpp3``. These are catalogue listings only; nothing is downloaded.
+    """
     from sktime.datasets import DATASET_NAMES_FPP3, tsc_dataset_names
     from sktime.datasets.tsf_dataset_names import tsf_all
 
@@ -88,10 +149,29 @@ def _remote_names() -> dict[str, list[str]]:
 
 
 def resolve(name: str) -> tuple[str, str]:
-    """Resolve a dataset id to ``(source, canonical_name)``.
+    """Resolve a dataset id to the source that can load it.
 
-    ``source`` is ``object`` (an sktime dataset object), ``loader`` (a loader
-    function with no object), or one of the remote namespaces.
+    A prefixed id pins its source. A bare name is looked up in the built-in
+    catalogue first, then case-insensitively across the remote archives.
+
+    Parameters
+    ----------
+    name : str
+        A dataset id, e.g. ``"airline"`` or ``"ucr:ArrowHead"``.
+
+    Returns
+    -------
+    tuple of str
+        ``(source, canonical_name)``. The source is ``object`` for an sktime
+        dataset object, ``loader`` for one sktime exposes only as a function,
+        or a remote namespace.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` for an unknown name, with close matches as the hint;
+        ``usage`` for an unknown namespace, or a bare name that several
+        archives publish, listing the prefixed forms to disambiguate.
     """
     if ":" in name:
         source, _, rest = name.partition(":")
@@ -146,7 +226,29 @@ def resolve(name: str) -> tuple[str, str]:
 
 
 def _load_object(name: str, split: str | None) -> dict[str, Any]:
-    """Instantiate an sktime dataset object and load the requested split."""
+    """Load a dataset through its sktime dataset object.
+
+    Parameters
+    ----------
+    name : str
+        A key of :func:`object_index`.
+    split : str or None
+        ``"train"`` or ``"test"``, for datasets that define splits.
+
+    Returns
+    -------
+    dict
+        With ``task``, the data as ``X`` and ``y``, and the object's ``tags``.
+        For forecasting datasets the series is ``y`` and exogenous data is
+        ``X``.
+
+    Raises
+    ------
+    CliError
+        ``missing_dependency`` if the dataset needs an uninstalled package;
+        ``usage`` if a split was asked for that the dataset does not define,
+        listing the parts it does have.
+    """
     record = object_index()[name]
     if not record.get("installable", True):
         raise missing_dependency(
@@ -169,14 +271,30 @@ def _load_object(name: str, split: str | None) -> dict[str, Any]:
     else:
         X, y = dataset.load("X", "y")
 
-    if task == "forecasting":
+    if task == "forecaster":
         # forecasting objects return the series as y and exogenous data as X
         return {"task": task, "y": y, "X": X, "tags": record["tags"]}
     return {"task": task, "X": X, "y": y, "tags": record["tags"]}
 
 
 def _load_loader(name: str, split: str | None) -> dict[str, Any]:
-    """Load one of the datasets sktime exposes only as a loader function."""
+    """Load a dataset that sktime exposes only as a loader function.
+
+    A small fallback for the datasets with no registry object, kept so that
+    dropping the old hand-maintained table cost no coverage.
+
+    Parameters
+    ----------
+    name : str
+        A key of :data:`LOADER_ONLY`.
+    split : str or None
+        ``"train"`` or ``"test"``.
+
+    Returns
+    -------
+    dict
+        With ``task``, ``X``, and ``y``.
+    """
     import sktime.datasets as skd
 
     entry = LOADER_ONLY[name]
@@ -187,7 +305,34 @@ def _load_loader(name: str, split: str | None) -> dict[str, Any]:
 
 
 def load(source: str, name: str, split: str | None = None) -> dict[str, Any]:
-    """Load a dataset; returns ``{task, y?, X?, metadata?, tags?}``."""
+    """Load a dataset from whichever source :func:`resolve` identified.
+
+    Parameters
+    ----------
+    source : str
+        A source from :func:`resolve`.
+    name : str
+        The canonical name from :func:`resolve`.
+    split : str or None
+        ``"train"`` or ``"test"``, where the source supports it.
+
+    Returns
+    -------
+    dict
+        Always carries ``task``, plus ``y`` and ``X`` as the task implies.
+        Dataset objects add ``tags``, and Monash datasets add ``metadata``.
+
+    Raises
+    ------
+    CliError
+        ``missing_dependency`` if loading needs an uninstalled package, which
+        is common for the remote archives; ``usage`` for an unavailable split.
+
+    Notes
+    -----
+    Remote archives download into the workspace directory, so
+    ``sktime-cli cache clear`` reclaims the space.
+    """
     import sktime.datasets as skd
 
     if source == "object":
@@ -202,47 +347,76 @@ def load(source: str, name: str, split: str | None = None) -> dict[str, Any]:
             return_X_y=True,
             extract_path=str(subdir("downloads/ucr")),
         )
-        return {"task": "classification", "X": X, "y": y}
+        return {"task": "classifier", "X": X, "y": y}
 
     if source == "tsf":
         data, metadata = skd.load_forecastingdata(
             name, extract_path=str(subdir("downloads/tsf"))
         )
-        return {"task": "forecasting", "y": data, "metadata": metadata}
+        return {"task": "forecaster", "y": data, "metadata": metadata}
 
     if source == "fpp3":
         data = skd.load_fpp3(name, temp_folder=str(subdir("downloads/fpp3")))
-        return {"task": "forecasting", "y": data}
+        return {"task": "forecaster", "y": data}
 
     raise CliError("internal", f"unhandled dataset source: {source}")
 
 
-# tags worth surfacing in ``datasets describe``, in display order
-DESCRIBE_TAGS = [
-    "n_instances",
-    "n_timepoints",
-    "n_dimensions",
-    "frequency",
-    "is_univariate",
-    "is_equally_spaced",
-    "has_nans",
-    "has_exogenous",
-    "n_splits",
-    "n_panels",
-    "n_hierarchy_levels",
-]
+# sktime's housekeeping tag namespaces: identity, packaging, and test control.
+# Everything else a dataset object declares describes the data, so it is
+# reported. Excluding by namespace means a tag added upstream shows up rather
+# than being silently dropped by an allow-list.
+_INTERNAL_TAG_PREFIXES = ("tests:", "python_", "property:", "capability:")
+_INTERNAL_TAGS = frozenset({"name", "object_type", "env_marker", "sktime_version"})
 
 
 def describe_tags(record: dict) -> dict:
-    """Pick the informative tags of a dataset object, skipping empty ones."""
-    tags = record["tags"]
-    return {key: tags[key] for key in DESCRIBE_TAGS if tags.get(key) is not None}
+    """Pick out the tags of a dataset object that describe the data.
+
+    Selection is by excluding sktime's housekeeping namespaces rather than by
+    listing what to keep, so a descriptive tag added upstream is surfaced
+    instead of being silently dropped.
+
+    Parameters
+    ----------
+    record : dict
+        A registry record for a dataset object.
+
+    Returns
+    -------
+    dict
+        Tags such as ``frequency``, ``n_timepoints``, ``is_univariate``, and
+        ``has_exogenous``. Tags set to ``None`` are omitted.
+    """
+    return {
+        key: value
+        for key, value in record["tags"].items()
+        if value is not None
+        and key not in _INTERNAL_TAGS
+        and not key.startswith(_INTERNAL_TAG_PREFIXES)
+    }
 
 
 def listing(
     source: str | None = None, task: str | None = None, contains: str | None = None
 ) -> list[dict]:
-    """Rows for ``datasets list``."""
+    """Build the rows for ``datasets list``.
+
+    Parameters
+    ----------
+    source : str or None
+        Restrict to ``builtin`` or one remote archive. ``None`` lists all.
+    task : str or None
+        Restrict to a task, using sktime's scitype names.
+    contains : str or None
+        Case-insensitive substring the name must contain.
+
+    Returns
+    -------
+    list of dict
+        Rows with ``name``, ``source``, ``task``, ``offline``, and
+        ``installable``. ``offline`` marks datasets that need no download.
+    """
     rows: list[dict] = []
 
     if source in (None, "builtin"):
@@ -291,7 +465,19 @@ def listing(
 
 
 def _needs_network(record: dict) -> bool:
-    """Report whether loading the dataset downloads rather than reads bundled data."""
+    """Report whether loading a dataset downloads rather than reads bundled data.
+
+    Parameters
+    ----------
+    record : dict
+        A registry record for a dataset object.
+
+    Returns
+    -------
+    bool
+        True for the download-backed datasets. sktime bundles the rest, so
+        this recognizes the exceptions by module.
+    """
     module = record.get("module", "")
     # sktime bundles its builtin datasets except the download-backed ones
     return any(part in module for part in ("solar", "m5"))

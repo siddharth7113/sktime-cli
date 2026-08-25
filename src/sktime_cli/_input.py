@@ -16,16 +16,53 @@ from sktime_cli._errors import CliError
 
 
 class Input(NamedTuple):
-    """Data resolved from ``--data``, before roles are assigned."""
+    """Data resolved from ``--data``, before roles are assigned.
 
-    obj: Any  # the main data object: Series, DataFrame, Panel or Hierarchical
-    labels: Any | None  # class/target labels carried alongside (.ts, .arff, datasets)
-    exog: Any | None  # exogenous X, from --exog
-    kind: str  # "series" | "panel" | "hierarchical"
+    Roles are deliberately not decided here. The same panel file is ``X`` for
+    a classifier and ``y`` for a global forecaster, so the estimator's scitype
+    picks the slots, not the file.
+
+    Attributes
+    ----------
+    obj : pd.Series or pd.DataFrame
+        The main data object: a Series, or a Panel or Hierarchical frame.
+    labels : pd.Series or None
+        Class or target labels that came with the data, from a ``.ts`` file or
+        a classification dataset. ``None`` when the source carried none.
+    exog : pd.DataFrame or None
+        Exogenous data from ``--exog``, or a dataset's own exogenous columns.
+    kind : {"series", "panel", "hierarchical"}
+        The scitype of ``obj``.
+    """
+
+    obj: Any
+    labels: Any | None
+    exog: Any | None
+    kind: str
 
 
 class ReadOptions(NamedTuple):
-    """The ``--index-col``/``--freq``/``--long`` family, threaded as one value."""
+    """The file-reading options, grouped so they thread through as one value.
+
+    Every ``run`` command exposes this same family of flags, and they are
+    passed unchanged from the command layer down to :func:`_io.read_any`.
+    Grouping them keeps that hand-off from becoming six positional arguments.
+
+    Attributes
+    ----------
+    index_col : str, default "auto"
+        Time index column for tabular files, or ``"none"`` to keep a
+        ``RangeIndex``.
+    freq : str or None
+        Pandas frequency alias for the index, e.g. ``"M"``.
+    long : bool, default False
+        Read the file as long-format panel rows.
+    id_col : str or None
+        Instance id column(s) for long format, comma-separated for a
+        hierarchy.
+    time_col : str or None
+        Time column for long format.
+    """
 
     index_col: str = "auto"
     freq: str | None = None
@@ -35,7 +72,27 @@ class ReadOptions(NamedTuple):
 
 
 def _split_target(obj, target: str, source: str):
-    """Split a wide frame into (y, X) on ``--target``."""
+    """Split a wide frame into endogenous and exogenous parts on ``--target``.
+
+    Parameters
+    ----------
+    obj : pd.DataFrame
+        A wide frame holding the target and its exogenous columns.
+    target : str
+        Name of the column to use as ``y``.
+    source : str
+        What ``--data`` named, used only in the error message.
+
+    Returns
+    -------
+    tuple
+        ``(y, X)``, where ``X`` is ``None`` if no columns remained.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` if ``obj`` is not a frame or has no such column.
+    """
     import pandas as pd
 
     if not isinstance(obj, pd.DataFrame) or target not in obj.columns:
@@ -45,7 +102,23 @@ def _split_target(obj, target: str, source: str):
 
 
 def _looks_like_path(data: str) -> bool:
-    """Report whether --data reads as a filename, so a miss is a missing file."""
+    """Report whether ``--data`` reads as a filename rather than a dataset id.
+
+    This decides which error a miss produces. ``--data sales.csv`` that does
+    not exist is a missing file, not an unknown dataset, and saying so points
+    at the real problem.
+
+    Parameters
+    ----------
+    data : str
+        The raw ``--data`` value.
+
+    Returns
+    -------
+    bool
+        True for anything with a path separator or a file suffix. A namespaced
+        dataset id such as ``ucr:ArrowHead`` is never a path.
+    """
     if "/" in data or "\\" in data:
         return True
     if ":" in data:  # namespaced dataset id, e.g. ucr:ArrowHead
@@ -54,7 +127,22 @@ def _looks_like_path(data: str) -> bool:
 
 
 def _missing_data_file(data: str) -> CliError:
-    """Report a --data path that doesn't exist, suggesting a fetch when we can."""
+    """Build the error for a ``--data`` path that does not exist.
+
+    When the filename stem happens to name a dataset, the hint offers the
+    command that would fetch it, which is usually what the caller meant.
+
+    Parameters
+    ----------
+    data : str
+        The path that was not found.
+
+    Returns
+    -------
+    CliError
+        A ``not_found`` error, with a hint that either fetches the dataset or
+        points at the dataset listing.
+    """
     from sktime_cli import _datasets
 
     stem = Path(data).stem
@@ -73,7 +161,38 @@ def load(
     target: str | None = None,
     exog: Path | None = None,
 ) -> Input:
-    """Resolve ``--data`` (a file path or a dataset id) into an ``Input``."""
+    """Resolve ``--data`` into the data a workflow will run on.
+
+    The single entry point for ``--data``, which accepts either a file path or
+    a dataset id.
+
+    Parameters
+    ----------
+    data : str
+        A path to a data file, or a dataset id such as ``airline`` or
+        ``ucr:ArrowHead``.
+    opts : ReadOptions, optional
+        File-reading options. Defaults to reading a wide file with an inferred
+        time index.
+    target : str or None
+        Column of a wide file to use as the target, with the rest becoming
+        exogenous data.
+    exog : Path or None
+        Separate file of exogenous data, which overrides anything ``target``
+        or the dataset supplied.
+
+    Returns
+    -------
+    Input
+        The data with roles still unassigned.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` for a missing file or unknown dataset, ``usage`` for an
+        ambiguous dataset name, ``data_error`` for contents that cannot be
+        read.
+    """
     opts = opts or ReadOptions()
     path = Path(data)
     if path.exists():
@@ -86,6 +205,17 @@ def load(
 def _load_file(
     path: Path, opts: ReadOptions, target: str | None, exog: Path | None
 ) -> Input:
+    """Read ``--data`` from a file on disk.
+
+    See :func:`load` for the parameters; ``path`` is a file already known to
+    exist.
+
+    Returns
+    -------
+    Input
+        The file's contents, plus any labels it carried and exogenous data
+        from ``target`` or ``exog``.
+    """
     read = _io.read_any(
         path,
         index_col=opts.index_col,
@@ -104,6 +234,19 @@ def _load_file(
 
 
 def _load_dataset(data: str, exog: Path | None, opts: ReadOptions) -> Input:
+    """Fetch ``--data`` as a dataset id and assign its parts.
+
+    Forecasting datasets return the series as ``obj`` with any exogenous
+    columns as ``exog``; classification and regression datasets return the
+    panel as ``obj`` with its labels.
+
+    See :func:`load` for the parameters.
+
+    Returns
+    -------
+    Input
+        The dataset's contents.
+    """
     source, canonical = _datasets.resolve(data)
     loaded = _datasets.load(source, canonical)
     exog_obj = (
@@ -111,7 +254,7 @@ def _load_dataset(data: str, exog: Path | None, opts: ReadOptions) -> Input:
         if exog is not None
         else loaded.get("X")
     )
-    if loaded["task"] == "forecasting":
+    if loaded["task"] == "forecaster":
         y = loaded["y"]
         return Input(obj=y, labels=None, exog=exog_obj, kind=_kind_of(y))
     return Input(
@@ -120,7 +263,19 @@ def _load_dataset(data: str, exog: Path | None, opts: ReadOptions) -> Input:
 
 
 def _kind_of(obj) -> str:
-    """Classify a pandas object as series, panel, or hierarchical by index depth."""
+    """Classify a pandas object's scitype from the depth of its index.
+
+    Parameters
+    ----------
+    obj : pd.Series or pd.DataFrame
+        The object to classify.
+
+    Returns
+    -------
+    {"series", "panel", "hierarchical"}
+        ``series`` for a flat index, ``panel`` for two levels, and
+        ``hierarchical`` for more.
+    """
     import pandas as pd
 
     index = getattr(obj, "index", None)
@@ -130,7 +285,19 @@ def _kind_of(obj) -> str:
 
 
 def _has_non_numeric(obj) -> list[str]:
-    """Return the names of non-numeric columns, which no estimator accepts as y."""
+    """Name the non-numeric columns of an object, if any.
+
+    Parameters
+    ----------
+    obj : pd.Series or pd.DataFrame
+        The object to check.
+
+    Returns
+    -------
+    list of str
+        Names of columns no estimator will accept as a target. Empty when the
+        data is entirely numeric.
+    """
     import pandas as pd
 
     if isinstance(obj, pd.Series):
@@ -145,12 +312,31 @@ def _has_non_numeric(obj) -> list[str]:
 
 
 def as_endogenous(inp: Input, source: str):
-    """Return ``obj`` as forecasting ``y``, with a CLI-level error if it cannot be.
+    """Return the resolved data as forecasting ``y``, or explain why it cannot be.
 
     The common mistake is pointing ``--data`` at a long-format panel without
     ``--long``, which leaves the instance id sitting in the frame as a string
-    column. sktime raises a type error deep inside ``fit``; this turns it into
-    an actionable message naming the flags that fix it.
+    column. sktime raises a type error deep inside ``fit`` for that; this
+    catches it first and names the flags that fix it.
+
+    Parameters
+    ----------
+    inp : Input
+        Resolved data. Series, Panel, and Hierarchical are all valid: sktime
+        forecasters accept panel ``y`` for global forecasting.
+    source : str
+        What ``--data`` named, reported as the error's detail.
+
+    Returns
+    -------
+    pd.Series or pd.DataFrame
+        The data, unchanged, when it can serve as ``y``.
+
+    Raises
+    ------
+    CliError
+        ``data_error`` naming the offending columns, hinting at ``--long`` and
+        ``--target``.
     """
     obj = inp.obj
     bad = _has_non_numeric(obj)

@@ -26,7 +26,17 @@ JSON_OPT = typer.Option(False, "--json", help="Shorthand for --format json.")
 
 
 def _machine_errors() -> bool:
-    """Decide if errors should be JSON: explicit machine format, or no TTY."""
+    """Decide whether errors should be JSON rather than styled text.
+
+    This reads ``sys.argv`` directly rather than the resolved format, because
+    a command can fail before its options are parsed, and an error still has
+    to obey the contract.
+
+    Returns
+    -------
+    bool
+        True when a machine format was asked for, or stdout is not a terminal.
+    """
     argv = sys.argv[1:]
     if "--json" in argv or "--format=json" in argv or "--format=agent" in argv:
         return True
@@ -40,7 +50,18 @@ _ROOT_VALUE_FLAGS = ("--format", "--cache-dir")
 
 
 def _command_path() -> str:
-    """Best-effort ``<group> <command>`` string for error objects, from argv."""
+    """Recover the ``<group> <command>`` string for an error object.
+
+    Read from ``sys.argv`` for the same reason as :func:`_machine_errors`: the
+    failure may predate parsing. Best-effort by nature, so callers treat an
+    empty result as "unknown" rather than an error.
+
+    Returns
+    -------
+    str
+        Up to two non-option tokens, e.g. ``"run fit"``. Empty if there are
+        none.
+    """
     tokens: list[str] = []
     skip_next = False
     for arg in sys.argv[1:]:
@@ -57,11 +78,29 @@ def _command_path() -> str:
 
 
 def _emit(err: CliError) -> None:
+    """Write one error to stderr in the form the caller can consume."""
     print_error(err.to_dict(_command_path() or None), human=not _machine_errors())
 
 
 def _classify(err: Exception) -> CliError:
-    """Wrap an unexpected exception, attributing sktime-internal failures."""
+    """Wrap an unexpected exception, attributing it to sktime or to the CLI.
+
+    The distinction matters to whoever reads the error: ``sktime_error`` means
+    the CLI asked sktime to do something and sktime refused, while
+    ``internal`` means the CLI itself broke and the report is a bug.
+    Attribution is by walking the traceback for a frame inside sktime.
+
+    Parameters
+    ----------
+    err : Exception
+        The exception that escaped a command.
+
+    Returns
+    -------
+    CliError
+        Coded ``sktime_error`` or ``internal``, carrying the exception type,
+        its message, and the file and line it was raised from.
+    """
     frames = traceback.extract_tb(err.__traceback__)
     from_sktime = any(
         "sktime" in frame.filename and "sktime_cli" not in frame.filename
@@ -76,7 +115,30 @@ def _classify(err: Exception) -> CliError:
 
 
 def handle_errors(func):
-    """Decorate a command: CliError and unexpected errors -> contract output."""
+    """Turn any failure in a command into the documented error contract.
+
+    Every command is wrapped in this. It is the single place a failure becomes
+    a JSON object on stderr and a meaningful exit code, which is what lets an
+    agent branch on the outcome rather than parse a traceback.
+
+    Parameters
+    ----------
+    func : callable
+        The command function.
+
+    Returns
+    -------
+    callable
+        The wrapped function. It raises ``typer.Exit`` with the code from
+        :data:`sktime_cli._errors.EXIT_CODES` instead of propagating.
+
+    Notes
+    -----
+    ``typer.Exit`` and ``typer.Abort`` pass through, since they are control
+    flow rather than failures. Import errors get their package named by
+    :func:`sktime_cli._errors.from_module_not_found`. Everything else is
+    classified by :func:`_classify`; nothing escapes as a traceback.
+    """
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):

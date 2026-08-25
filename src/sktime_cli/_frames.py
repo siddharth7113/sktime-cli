@@ -12,14 +12,37 @@ from __future__ import annotations
 
 from typing import Any
 
-# column names for each probabilistic result, in column-level order
+#: Column-level names for ``predict_interval`` output, outermost first. Part of
+#: the published output contract: melted interval results always have these
+#: columns plus ``value``, whatever coverages were requested.
 INTERVAL_LEVELS = ["variable", "coverage", "bound"]
+
+#: Column-level names for ``predict_quantiles`` output. See
+#: :data:`INTERVAL_LEVELS`.
 QUANTILE_LEVELS = ["variable", "quantile"]
+
+#: Column-level names for ``predict_var`` output, whose columns are flat.
 VAR_LEVELS = ["variable"]
 
 
 def _index_names(index) -> list[str]:
-    """Names for every index level, filling in ``time``/``level_i`` as needed."""
+    """Name every level of an index, inventing names for unnamed ones.
+
+    Melting needs named levels to restore the index afterwards, and sktime
+    results often carry an unnamed index. A single unnamed level becomes
+    ``time``, since that is what it always is here; unnamed levels of a
+    ``MultiIndex`` become ``level_0``, ``level_1``, and so on.
+
+    Parameters
+    ----------
+    index : pd.Index
+        Index to name.
+
+    Returns
+    -------
+    list of str
+        One name per level, in order.
+    """
     if index.nlevels == 1:
         return [index.name if index.name is not None else "time"]
     return [
@@ -30,9 +53,35 @@ def _index_names(index) -> list[str]:
 def melt(frame, levels: list[str]):
     """Melt column levels into long form, keeping the row index intact.
 
-    ``levels`` names the column levels of ``frame``, outermost first. The
-    result has those names as columns plus ``value``, indexed exactly as
-    ``frame`` was.
+    This is what makes probabilistic output parseable. sktime returns
+    intervals with columns ``(variable, coverage, bound)``, so asking for two
+    coverages instead of one changes the column count. In long form the
+    columns are fixed and extra levels add rows instead.
+
+    Parameters
+    ----------
+    frame : pd.DataFrame
+        Frame whose columns are to be melted. Flat columns are treated as a
+        single level, so this works on ``predict_var`` output too.
+    levels : list of str
+        Names for the column levels, outermost first. Use the module
+        constants: :data:`INTERVAL_LEVELS`, :data:`QUANTILE_LEVELS`, or
+        :data:`VAR_LEVELS`.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per (index entry, column combination), with ``levels`` as
+        columns plus ``value``, indexed as ``frame`` was.
+
+    Examples
+    --------
+    An interval frame with two coverages melts to four rows per timepoint,
+    with columns ``variable``, ``coverage``, ``bound``, ``value``.
+
+    See Also
+    --------
+    widen : The opposite choice, keeping sktime's native column layout.
     """
     import pandas as pd
 
@@ -48,7 +97,23 @@ def melt(frame, levels: list[str]):
 
 
 def widen(frame):
-    """Join MultiIndex column levels with ``__`` for a CSV-safe wide frame."""
+    """Flatten MultiIndex columns into single strings joined by ``__``.
+
+    Keeps sktime's native layout, one column per (variable, level)
+    combination, at the cost of a column count that varies with the request.
+    Use it when a downstream tool expects the wide shape.
+
+    Parameters
+    ----------
+    frame : pd.DataFrame
+        Frame with ``MultiIndex`` columns. A frame with flat columns is
+        returned unchanged.
+
+    Returns
+    -------
+    pd.DataFrame
+        The same data with string column names, e.g. ``y__0.8__lower``.
+    """
     import pandas as pd
 
     if not isinstance(frame.columns, pd.MultiIndex):
@@ -59,10 +124,24 @@ def widen(frame):
 
 
 def segments_to_frame(segments):
-    """Flatten a detector's segment result into ``start``/``end``/``label`` rows.
+    """Flatten a detector's segments into ``start`` and ``end`` columns.
 
-    ``predict_segments`` returns a Series or frame whose values (or index) are
-    ``pd.Interval`` objects, which no file format round-trips.
+    ``predict_segments`` may return intervals either as the index or as a
+    column of ``pd.Interval`` objects, and no file format round-trips those.
+    Detectors that instead return a dense label per timepoint need no
+    flattening and pass through unchanged.
+
+    Parameters
+    ----------
+    segments : pd.Series or pd.DataFrame
+        A detector's segment result.
+
+    Returns
+    -------
+    pd.DataFrame
+        With ``start`` and ``end`` columns plus any other columns the result
+        carried, indexed by segment number. If no intervals were found, the
+        input frame unchanged.
     """
     import pandas as pd
 
@@ -91,7 +170,24 @@ def segments_to_frame(segments):
 
 
 def to_frame(result: Any, name: str = "value"):
-    """Coerce any sktime result (array, Series, frame) into a DataFrame."""
+    """Coerce any sktime result into a DataFrame that can be written out.
+
+    Estimators return numpy arrays, Series, and DataFrames depending on
+    scitype and method, and the output layer only handles frames.
+
+    Parameters
+    ----------
+    result : np.ndarray, pd.Series or pd.DataFrame
+        Whatever the estimator returned.
+    name : str, default "value"
+        Column name to use when the result has none of its own. A Series that
+        already has a name keeps it.
+
+    Returns
+    -------
+    pd.DataFrame
+        The result as a frame.
+    """
     import numpy as np
     import pandas as pd
 

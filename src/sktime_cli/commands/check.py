@@ -20,14 +20,39 @@ _PASSED = "PASSED"
 
 
 def _split_csv(value: str | None) -> list[str] | None:
-    """Split a comma-separated option value into a list, or None when absent."""
+    """Split a comma-separated option value into a list.
+
+    Parameters
+    ----------
+    value : str or None
+        The raw option value.
+
+    Returns
+    -------
+    list of str or None
+        The parts, or ``None`` when the option was absent, which the check
+        runner reads as "no restriction".
+    """
     if not value:
         return None
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
 def _rows(results: dict) -> list[dict]:
-    """Turn check_estimator's {fixture: result} mapping into result rows."""
+    """Turn ``check_estimator``'s result mapping into table rows.
+
+    Parameters
+    ----------
+    results : dict
+        Test fixture name to outcome, where a pass is the string ``PASSED``
+        and a failure is the exception that was raised.
+
+    Returns
+    -------
+    list of dict
+        Rows with ``test``, ``status``, and ``detail``, sorted by test name so
+        two runs can be diffed.
+    """
     rows = []
     for fixture, outcome in sorted(results.items()):
         passed = isinstance(outcome, str) and outcome == _PASSED

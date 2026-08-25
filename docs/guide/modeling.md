@@ -97,6 +97,39 @@ forecasters, `--data` supplies exogenous values instead.
 `--proba` returns class probabilities for classifiers. `--output PATH` writes
 the predictions to a file instead of stdout, in the format the suffix names.
 
+### Uncertainty around a forecast
+
+Four flags turn a point forecast into a probabilistic one:
+
+```bash
+sktime-cli run predict --model model.zip --fh 1:12 --interval 0.8,0.95
+sktime-cli run predict --model model.zip --fh 1:12 --quantiles 0.1,0.9
+sktime-cli run predict --model model.zip --fh 1:12 --var
+sktime-cli run predict --model model.zip --data airline.csv --residuals
+```
+
+They are mutually exclusive. sktime returns intervals and quantiles with
+MultiIndex columns, whose shape changes with the number of levels you ask for.
+The CLI flattens them to long form instead, so the columns are fixed:
+
+| flag | columns |
+| --- | --- |
+| `--interval` | `variable`, `coverage`, `bound`, `value` |
+| `--quantiles` | `variable`, `quantile`, `value` |
+| `--var` | `variable`, `value` |
+
+Asking for three coverages instead of one adds rows, never columns, which is
+what makes the output safe to parse. Pass `--wide` if you want sktime's native
+layout instead, with the column levels joined by `__`.
+
+Not every forecaster can do this. The ones that can carry the
+`capability:pred_int` tag, and the others fail with a usage error that names
+it:
+
+```bash
+sktime-cli registry search forecaster -t capability:pred_int=True --installable-only
+```
+
 To do both steps in one process, use `run fit-predict`. It takes the fit
 options plus `--output`, and forecasters require `--fh`:
 
@@ -105,6 +138,52 @@ sktime-cli run fit-predict "NaiveForecaster(sp=12)" \
     --data airline.csv \
     --fh 1:12 \
     --output forecast.csv
+```
+
+## Transform data
+
+Transformers are the largest family in sktime. `run transform` fits one and
+applies it in a single step:
+
+```bash
+sktime-cli run transform "Detrender()" --data airline.csv --output detrended.csv
+```
+
+Pass `--model-out` to keep the fitted transformer, then reuse it on new data
+with `--model` instead of a spec. That distinction matters: refitting a
+transformer on new data would learn new parameters, while reloading applies
+the ones learned before.
+
+```bash
+sktime-cli run transform "Differencer()" --data train.csv --model-out diff.zip -o out.csv
+sktime-cli run transform --model diff.zip --data test.csv -o test_diff.csv
+sktime-cli run transform --model diff.zip --data test_diff.csv --inverse
+```
+
+`--inverse` calls `inverse_transform`, which needs the
+`capability:inverse_transform` tag; transformers without it fail with a usage
+error rather than an sktime traceback.
+
+Reconcilers are transformers in sktime's class hierarchy, so hierarchical
+reconciliation runs through this command too.
+
+## Detect anomalies, change points, and segments
+
+```bash
+sktime-cli run detect "HampelDetector()" --data series.csv
+sktime-cli run detect "ClusterSegmenter()" --data series.csv --kind segments
+sktime-cli run detect "MovingWindow()" --data series.csv --kind scores
+```
+
+`--kind` defaults to `auto`, which reads the detector's `task` tag and picks
+`predict_points` for anomaly and change point detectors, `predict_segments`
+for segmenters. Detectors that return segments as intervals are flattened to
+`start` and `end` columns so the result survives a CSV round trip.
+
+Discover what is available, and what each one does, with the `task` tag:
+
+```bash
+sktime-cli registry search detector --with-tags task --installable-only
 ```
 
 ## Backtest with run evaluate
@@ -149,8 +228,28 @@ sktime-cli run evaluate "NaiveForecaster(sp=12)" --data airline --fh 1:12 --json
 The aggregate holds a `mean` and `std` for each metric, keyed as
 `test_<Metric>`.
 
+### Backtesting a classifier
+
+`run evaluate` also cross-validates classifiers and regressors. Panel folds are
+drawn across instances rather than across time, so the splitters that fit are
+sklearn's, and `--cv` accepts them by name:
+
+```bash
+sktime-cli run evaluate "DummyClassifier()" \
+    --data train.ts \
+    --cv "StratifiedKFold(n_splits=5)" \
+    --metric accuracy_score
+```
+
+Without `--cv` the default is 3-fold cross-validation. `--metric` here takes
+the name of an `sklearn.metrics` function, falling back to sktime's registry.
+A fold that fails is reported as an error rather than a `NaN` score, so a
+metric that needs extra arguments tells you so instead of quietly producing an
+empty column.
+
 :::{note}
-In version 0.0.1, `run evaluate` supports forecasters only.
+sktime has no cross-validation utility for clusterers or detectors, so
+`run evaluate` does not cover them.
 :::
 
 ## Inspect a saved model

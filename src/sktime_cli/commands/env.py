@@ -152,6 +152,7 @@ cache_app = typer.Typer(no_args_is_help=True, help="Manage the sktime-cli cache 
 
 
 def _dir_size(path) -> int:
+    """Return the total size in bytes of every file under a directory."""
     return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
 
 

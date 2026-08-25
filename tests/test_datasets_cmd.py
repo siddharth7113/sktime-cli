@@ -15,7 +15,7 @@ def test_list_all_sources(invoke):
 
 def test_describe_builtin(invoke):
     payload = json.loads(invoke("datasets", "describe", "airline", "--json").stdout)
-    assert payload["task"] == "forecasting"
+    assert payload["task"] == "forecaster"
     assert payload["shape"] == [144]
 
 
@@ -23,7 +23,7 @@ def test_describe_remote_no_download(invoke):
     payload = json.loads(
         invoke("datasets", "describe", "ucr:ArrowHead", "--json").stdout
     )
-    assert payload["task"] == "classification"
+    assert payload["task"] == "classifier"
     assert "load" in payload["note"]
 
 
@@ -106,7 +106,7 @@ def test_loader_only_datasets_still_resolve(invoke, tmp_path):
     """unit_test and covid_3month have no object; the loader path covers them."""
     result = invoke("datasets", "load", "unit_test", "--output-dir", tmp_path, "--json")
     assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["task"] == "classification"
+    assert json.loads(result.stdout)["task"] == "classifier"
 
 
 def test_unknown_name_suggests_the_metadata_spelling(invoke):

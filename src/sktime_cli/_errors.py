@@ -22,6 +22,11 @@ EXIT_CODES: dict[str, int] = {
 class CliError(Exception):
     """A CLI failure with a stable machine-readable code.
 
+    Raising this rather than letting an exception escape is what turns a
+    failure into the documented output contract: a JSON object on stderr and a
+    predictable exit code. Agents branch on ``code``, so codes are
+    append-only.
+
     Parameters
     ----------
     code : str
@@ -49,7 +54,20 @@ class CliError(Exception):
         self.exit_code = EXIT_CODES.get(code, 1)
 
     def to_dict(self, command: str | None = None) -> dict:
-        """Return the error as the JSON-envelope dict emitted on stderr."""
+        """Render the error as the JSON envelope written to stderr.
+
+        Parameters
+        ----------
+        command : str or None
+            The command path that failed, e.g. ``"run fit"``, included so a
+            caller reading only stderr knows what produced the error.
+
+        Returns
+        -------
+        dict
+            ``{"error": {...}}``, carrying ``code`` and ``message`` always,
+            and ``hint``, ``detail`` and ``command`` when they are set.
+        """
         body: dict = {"code": self.code, "message": self.message}
         if self.hint:
             body["hint"] = self.hint
@@ -61,7 +79,26 @@ class CliError(Exception):
 
 
 def missing_dependency(what: str, packages: list[str] | str) -> CliError:
-    """Build a ``missing_dependency`` error with a ready-to-run install hint."""
+    """Build a ``missing_dependency`` error with a ready-to-run install hint.
+
+    Parameters
+    ----------
+    what : str
+        What needed the package, e.g. an estimator name or a command path.
+        Used to open the message.
+    packages : list of str, or str
+        Package requirements, optionally with version constraints such as
+        ``"scipy<1.7.0"``. Empty and ``None``-like entries are dropped, so a
+        caller that could not determine the package still gets a sensible
+        error rather than one reading ``None``.
+
+    Returns
+    -------
+    CliError
+        With code ``missing_dependency`` and exit code 3. The hint is a
+        runnable ``uv pip install`` command, with constrained requirements
+        quoted for the shell.
+    """
     if isinstance(packages, str):
         packages = [packages]
     packages = [p for p in packages if p and p != "None"]
@@ -89,11 +126,31 @@ _QUOTED = re.compile(r"'([^']+)'")
 
 
 def packages_from_error(err: BaseException) -> list[str]:
-    """Name the packages a ``ModuleNotFoundError`` is about.
+    """Name the packages an import error is about.
 
-    ``err.name`` is set when Python itself raises the import error, but sktime
-    raises its own with a message and no name. Falling back to the message
-    keeps the reported package accurate for both, instead of ``None``.
+    ``err.name`` is set when Python itself raises the import error, but
+    sktime's soft-dependency checks build a ``ModuleNotFoundError`` from a
+    message string, leaving ``name`` as ``None``. Reading the message back is
+    what keeps the reported package accurate for both, and avoids the CLI
+    holding its own table of which feature needs which package.
+
+    Parameters
+    ----------
+    err : BaseException
+        The import error to inspect. Usually a ``ModuleNotFoundError``.
+
+    Returns
+    -------
+    list of str
+        Package requirements, with version constraints when the error stated
+        them. Empty when the error names nothing recognizable, which callers
+        should treat as "a package is missing but we do not know which".
+
+    Notes
+    -----
+    Parsing an upstream message is fragile by nature. It degrades to an empty
+    list rather than a wrong answer, and the raw message is preserved as the
+    error's detail by :func:`from_module_not_found`.
     """
     name = getattr(err, "name", None)
     if name:
@@ -109,7 +166,22 @@ def packages_from_error(err: BaseException) -> list[str]:
 
 
 def from_module_not_found(err: BaseException, what: str = "this command") -> CliError:
-    """Turn any import failure into a ``missing_dependency`` error."""
+    """Turn any import failure into a ``missing_dependency`` error.
+
+    Parameters
+    ----------
+    err : BaseException
+        The import error that was raised.
+    what : str, default "this command"
+        What needed the package, used to open the message.
+
+    Returns
+    -------
+    CliError
+        With code ``missing_dependency``. When the package could not be
+        identified, the raw error text is carried as the detail so the caller
+        still has something to act on.
+    """
     packages = packages_from_error(err)
     error = missing_dependency(what, packages)
     if not packages:

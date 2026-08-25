@@ -25,6 +25,11 @@ app = typer.Typer(
 
 
 def _version_callback(value: bool) -> None:
+    """Print the version and exit, before any other option is processed.
+
+    Eager, so ``--version`` works without the arguments a subcommand would
+    otherwise require.
+    """
     if value:
         print(__version__)
         raise typer.Exit()
@@ -64,7 +69,12 @@ def _root(
 
 
 def _register_commands() -> None:
-    """Attach command groups; separate function keeps import order explicit."""
+    """Attach every command group to the root application.
+
+    Kept a function, with its imports inside, so the order in which command
+    modules are imported is explicit and the help listing order is the one
+    written here rather than an accident of import order.
+    """
     from sktime_cli.commands import (
         catalogues,
         check,
@@ -99,5 +109,5 @@ _register_commands()
 
 
 def main() -> None:
-    """Console-script entry point."""
+    """Run the CLI. This is the ``sktime-cli`` console-script entry point."""
     app()

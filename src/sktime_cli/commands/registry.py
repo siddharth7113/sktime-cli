@@ -14,6 +14,24 @@ app = typer.Typer(no_args_is_help=True)
 
 
 def _parse_tag_filters(filters: list[str]) -> dict:
+    """Parse repeated ``--filter-tag KEY=VALUE`` options into a filter mapping.
+
+    Parameters
+    ----------
+    filters : list of str
+        Raw option values. A comma in the value means "any of", so
+        ``scitype:y=univariate,both`` matches either.
+
+    Returns
+    -------
+    dict
+        Tag name to wanted value, or to a list of acceptable values.
+
+    Raises
+    ------
+    CliError
+        ``usage`` for a value with no ``=``.
+    """
     parsed = {}
     for item in filters:
         if "=" not in item:
@@ -27,6 +45,24 @@ def _parse_tag_filters(filters: list[str]) -> dict:
 
 
 def _tag_matches(tag_value, wanted) -> bool:
+    """Test one tag value against a wanted value.
+
+    Both sides may be lists, and they mean different things: a list of wanted
+    values is a disjunction, while a list tag value is a set the wanted value
+    must appear in.
+
+    Parameters
+    ----------
+    tag_value : Any
+        The value the object declares.
+    wanted : Any
+        The value, or values, asked for.
+
+    Returns
+    -------
+    bool
+        Whether the object matches.
+    """
     if isinstance(wanted, list):
         return any(_tag_matches(tag_value, w) for w in wanted)
     if isinstance(tag_value, list):
@@ -35,6 +71,21 @@ def _tag_matches(tag_value, wanted) -> bool:
 
 
 def _validate_scitype(scitype: str) -> None:
+    """Check a scitype exists before filtering on it.
+
+    Catching a typo here turns a confusing empty result into an error that
+    points at the command listing the valid names.
+
+    Parameters
+    ----------
+    scitype : str
+        The name to check.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` if sktime declares no such scitype.
+    """
     from sktime.registry import BASE_CLASS_SCITYPE_LIST
 
     if scitype not in BASE_CLASS_SCITYPE_LIST:

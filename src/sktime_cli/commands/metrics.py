@@ -19,20 +19,28 @@ from sktime_cli._specs import resolve_metric
 
 app = typer.Typer(no_args_is_help=True)
 
-# every metric scitype sktime declares, so `metrics list` needs no hardcoding
-METRIC_SCITYPES = (
-    "metric",
-    "metric_forecasting",
-    "metric_forecasting_proba",
-    "metric_detection",
-)
+
+def metric_scitypes() -> tuple[str, ...]:
+    """Return every scitype sktime uses for performance metrics.
+
+    Read from the registry rather than listed here, so a metric category added
+    upstream is listed without a change.
+
+    Returns
+    -------
+    tuple of str
+        Scitype names, e.g. ``("metric", "metric_forecasting", ...)``.
+    """
+    from sktime.registry import BASE_CLASS_SCITYPE_LIST
+
+    return tuple(s for s in BASE_CLASS_SCITYPE_LIST if s.startswith("metric"))
 
 
 @app.command("list")
 @handle_errors
 def list_(
     scitype: str | None = typer.Argument(
-        None, help=f"Restrict to one metric scitype: {'|'.join(METRIC_SCITYPES)}."
+        None, help="Restrict to one metric scitype, e.g. metric_forecasting."
     ),
     name: str | None = typer.Option(
         None, "--name", "-n", help="Substring match on the metric name."
@@ -45,17 +53,18 @@ def list_(
 ) -> None:
     """List sktime metric objects usable with --metric and `metrics score`."""
     fmt = resolve_format(format_, json_)
-    if scitype and scitype not in METRIC_SCITYPES:
+    known = metric_scitypes()
+    if scitype and scitype not in known:
         raise CliError(
             "usage",
             f"unknown metric scitype {scitype!r}",
-            hint=f"use one of: {', '.join(METRIC_SCITYPES)}",
+            hint=f"use one of: {', '.join(known)}",
         )
-    wanted = (scitype,) if scitype else METRIC_SCITYPES
+    wanted = (scitype,) if scitype else known
     rows = [
         {
             "name": record["name"],
-            "scitypes": [s for s in record["scitypes"] if s in METRIC_SCITYPES],
+            "scitypes": [s for s in record["scitypes"] if s in known],
             "lower_is_better": record["tags"].get("lower_is_better"),
             "installable": record["installable"],
         }
@@ -105,12 +114,47 @@ def score(
 
 
 def _metric_key(item: str) -> str:
-    """Name a score after the metric, without its parameter list."""
+    """Name a score after its metric, dropping any parameter list.
+
+    Parameters
+    ----------
+    item : str
+        The ``--metric`` value, which may be a spec.
+
+    Returns
+    -------
+    str
+        The bare metric name, so a parameterized metric keys the output the
+        same way a bare one does.
+    """
     return item.partition("(")[0] if "(" in item else item
 
 
 def _align(y_true, y_pred):
-    """Line up truth and prediction, erroring when they cannot be compared."""
+    """Line up observed and predicted values so they can be compared.
+
+    Single-column frames are squeezed to Series, and differing lengths are
+    reconciled on the shared part of the index, which is what makes it
+    possible to score a forecast against a longer test file.
+
+    Parameters
+    ----------
+    y_true : pd.Series or pd.DataFrame
+        Observed values.
+    y_pred : pd.Series or pd.DataFrame
+        Predicted values.
+
+    Returns
+    -------
+    tuple
+        ``(y_true, y_pred)`` covering the same rows.
+
+    Raises
+    ------
+    CliError
+        ``data_error`` when the lengths differ and the indexes do not overlap
+        at all, which means the two files describe different periods.
+    """
     import pandas as pd
 
     if isinstance(y_true, pd.DataFrame) and y_true.shape[1] == 1:
@@ -132,7 +176,34 @@ def _align(y_true, y_pred):
 
 
 def _call_metric(scorer, y_true, y_pred, y_train, item: str):
-    """Call a metric, supplying y_train to the metrics whose tag requires it."""
+    """Score one metric, supplying the extra arguments its tags ask for.
+
+    Scaled metrics such as MASE score against the training series, and the
+    tags say so, so a metric that needs it can ask for it rather than failing
+    with a ``KeyError`` from inside sktime.
+
+    Parameters
+    ----------
+    scorer : sktime metric
+        The metric object.
+    y_true, y_pred : pd.Series
+        Aligned observed and predicted values.
+    y_train : pd.Series or None
+        Training series, from ``--train``.
+    item : str
+        The original ``--metric`` value, named in error messages.
+
+    Returns
+    -------
+    float
+        The score.
+
+    Raises
+    ------
+    CliError
+        ``usage`` when the metric needs a training series that was not given,
+        or needs a benchmark prediction, which this command cannot supply.
+    """
     kwargs = {}
     if scorer.get_tag("requires-y-train", False, raise_error=False):
         if y_train is None:

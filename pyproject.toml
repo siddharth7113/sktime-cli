@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sktime-cli"
-version = "0.0.1"
+version = "0.0.2"
 description = "Command-line interface for sktime, designed for AI agents and humans"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -31,10 +31,11 @@ classifiers = [
 ]
 
 [project.urls]
+Homepage = "https://sktime-cli.readthedocs.io"
 Documentation = "https://sktime-cli.readthedocs.io"
 Repository = "https://github.com/siddharth7113/sktime-cli"
 Issues = "https://github.com/siddharth7113/sktime-cli/issues"
-Changelog = "https://github.com/siddharth7113/sktime-cli/releases"
+Changelog = "https://github.com/siddharth7113/sktime-cli/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 parquet = ["pyarrow>=14"]

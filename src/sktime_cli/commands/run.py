@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -51,12 +52,14 @@ OUTPUT_OPT = typer.Option(
 
 
 def _read_opts(index_col, freq, long, id_col, time_col) -> ReadOptions:
+    """Group the file-reading flags into one :class:`ReadOptions` value."""
     return ReadOptions(
         index_col=index_col, freq=freq, long=long, id_col=id_col, time_col=time_col
     )
 
 
 def _looks_like_panel(obj) -> bool:
+    """Report whether an object carries a MultiIndex, and so holds a panel."""
     import pandas as pd
 
     return isinstance(getattr(obj, "index", None), pd.MultiIndex)
@@ -67,7 +70,27 @@ def _looks_like_panel(obj) -> bool:
 
 
 def _fit(est, handler: str, inp: Input, source: str, fh_text: str | None):
-    """Dispatch fit by handler family; returns (n_obs, extras dict)."""
+    """Fit an estimator, dispatching on its handler family.
+
+    Parameters
+    ----------
+    est : sktime estimator
+        The object to fit.
+    handler : str
+        Handler family from :func:`sktime_cli._scitypes.handler_for`.
+    inp : Input
+        Resolved data; which slot each part fills is decided here.
+    source : str
+        What ``--data`` named, for error messages.
+    fh_text : str or None
+        The ``--fh`` value, for forecasters that need a horizon at fit time.
+
+    Returns
+    -------
+    tuple
+        ``(n_obs, extras)``, where ``extras`` holds fields worth reporting in
+        the manifest, such as a forecaster's cutoff.
+    """
     if handler == "forecaster":
         return _fit_forecaster(est, inp, source, fh_text)
     if handler == "panel":
@@ -80,7 +103,26 @@ def _fit(est, handler: str, inp: Input, source: str, fh_text: str | None):
 
 
 def _fit_forecaster(est, inp: Input, source: str, fh_text: str | None):
-    """Fit a forecaster on Series, or on Panel/Hierarchical y (global forecasting)."""
+    """Fit a forecaster on a series, a panel, or a hierarchy.
+
+    Panel and Hierarchical ``y`` are accepted, not just Series: sktime
+    forecasters support global forecasting, and rejecting a panel here was a
+    0.0.1 bug.
+
+    See :func:`_fit` for the parameters.
+
+    Returns
+    -------
+    tuple
+        ``(n_obs, extras)``, where ``extras`` carries the cutoff and, for
+        non-series input, the input kind.
+
+    Raises
+    ------
+    CliError
+        ``usage`` when the forecaster needs a horizon at fit time and none was
+        given; ``data_error`` when the data cannot serve as ``y``.
+    """
     y = _input.as_endogenous(inp, source)
     fh = _io.parse_fh(fh_text) if fh_text else None
     try:
@@ -102,7 +144,19 @@ def _fit_forecaster(est, inp: Input, source: str, fh_text: str | None):
 
 
 def _check_panel_input(inp: Input) -> None:
-    """Reject Series data for estimators that need a Panel, with a usable hint."""
+    """Reject a single series where a panel is required.
+
+    Parameters
+    ----------
+    inp : Input
+        Resolved data.
+
+    Raises
+    ------
+    CliError
+        ``data_error`` hinting at the three ways to supply a panel: a ``.ts``
+        file, a classification dataset, or a long-format file.
+    """
     if inp.kind not in ("panel", "hierarchical") and not _looks_like_panel(inp.obj):
         raise CliError(
             "data_error",
@@ -115,7 +169,21 @@ def _check_panel_input(inp: Input) -> None:
 
 
 def _fit_panel(est, inp: Input):
-    """Fit a classifier/regressor/clusterer on Panel data."""
+    """Fit a classifier, regressor, or clusterer on panel data.
+
+    See :func:`_fit` for the parameters.
+
+    Returns
+    -------
+    tuple
+        ``(n_obs, extras)``.
+
+    Raises
+    ------
+    CliError
+        ``data_error`` for series input, or for unlabelled data given to an
+        estimator that needs labels. Clusterers fit without labels.
+    """
     _check_panel_input(inp)
     X, y = inp.obj, inp.labels
     if y is None and estimator_scitype(est) != "clusterer":
@@ -133,7 +201,24 @@ def _fit_panel(est, inp: Input):
 
 
 def _require_proba(est, mode: str) -> None:
-    """Fail with a CLI-level message when a forecaster has no interval support."""
+    """Check a forecaster can produce probabilistic output before asking it to.
+
+    Without this the failure surfaces as an sktime traceback partway through
+    prediction; the tag says up front whether it is even possible.
+
+    Parameters
+    ----------
+    est : sktime forecaster
+        The fitted forecaster.
+    mode : str
+        Which flag was passed, named in the error.
+
+    Raises
+    ------
+    CliError
+        ``usage`` naming the ``capability:pred_int`` tag, with the registry
+        search that finds forecasters carrying it.
+    """
     if not est.get_tag("capability:pred_int", False, raise_error=False):
         raise CliError(
             "usage",
@@ -147,7 +232,36 @@ def _require_proba(est, mode: str) -> None:
 
 
 def _predict_forecaster(est, fh_text, X, mode: str, levels, wide: bool):
-    """Point or probabilistic forecast, flattened to long form unless --wide."""
+    """Produce a point or probabilistic forecast.
+
+    Parameters
+    ----------
+    est : sktime forecaster
+        The fitted forecaster.
+    fh_text : str or None
+        The ``--fh`` value. May be ``None`` when the horizon was fixed at fit
+        time.
+    X : pd.DataFrame or None
+        Exogenous data for the forecast period.
+    mode : {"point", "interval", "quantiles", "var"}
+        Which kind of forecast to produce.
+    levels : list of float or None
+        Coverages or alphas. Defaults per mode when ``None``.
+    wide : bool
+        Keep sktime's native column layout instead of melting to long form.
+
+    Returns
+    -------
+    pd.Series or pd.DataFrame
+        The forecast. Probabilistic modes come back in the long form described
+        in :mod:`sktime_cli._frames` unless ``wide`` is set.
+
+    Raises
+    ------
+    CliError
+        ``usage`` when no horizon is available, or the forecaster cannot
+        produce probabilistic output.
+    """
     fh = _io.parse_fh(fh_text) if fh_text else None
 
     def shape(raw, names):
@@ -175,7 +289,23 @@ def _predict_forecaster(est, fh_text, X, mode: str, levels, wide: bool):
 
 
 def _predict_panel(est, X, proba: bool):
-    """Predict labels or class probabilities for Panel data."""
+    """Predict labels, or class probabilities, for panel data.
+
+    Parameters
+    ----------
+    est : sktime estimator
+        A fitted classifier, regressor, or clusterer.
+    X : pd.DataFrame
+        Panel data to predict on.
+    proba : bool
+        Return per-class probabilities rather than labels.
+
+    Returns
+    -------
+    pd.Series or pd.DataFrame
+        Labels as a Series, or probabilities as a frame with one column per
+        class, named from the estimator's ``classes_``.
+    """
     import pandas as pd
 
     if proba:
@@ -186,7 +316,30 @@ def _predict_panel(est, X, proba: bool):
 
 
 def _detector_result(est, X, kind: str):
-    """Run the detector method matching ``--kind``; returns (frame, resolved kind)."""
+    """Run the detector method that ``--kind`` asked for.
+
+    Parameters
+    ----------
+    est : sktime detector
+        The fitted detector.
+    X : pd.DataFrame
+        Data to run over.
+    kind : {"auto", "points", "segments", "scores"}
+        Which result to produce. ``auto`` reads the detector's ``task`` tag,
+        giving segments for segmenters and points for anomaly and change point
+        detectors.
+
+    Returns
+    -------
+    tuple
+        ``(frame, resolved_kind)``. Segments are flattened to ``start`` and
+        ``end`` columns so they survive a file round trip.
+
+    Raises
+    ------
+    CliError
+        ``usage`` for a kind that is not one of the three.
+    """
     if kind == "auto":
         task = str(est.get_tag("task", "segmentation", raise_error=False))
         kind = "segments" if "segment" in task else "points"
@@ -222,7 +375,18 @@ def _emit_result(
 
 
 def _proba_mode(interval, quantiles, var, residuals) -> str:
-    """Resolve the mutually exclusive probabilistic flags to one mode."""
+    """Collapse the four probabilistic flags into one mode.
+
+    Returns
+    -------
+    str
+        The chosen mode, or ``"point"`` when none was given.
+
+    Raises
+    ------
+    CliError
+        ``usage`` when more than one was given, naming which.
+    """
     chosen = [
         name
         for name, on in (
@@ -239,7 +403,24 @@ def _proba_mode(interval, quantiles, var, residuals) -> str:
 
 
 def _parse_levels(text: str | None) -> list[float] | None:
-    """Parse a comma-separated list of coverages/alphas."""
+    """Parse the comma-separated coverages or alphas of a probabilistic flag.
+
+    Parameters
+    ----------
+    text : str or None
+        E.g. ``"0.8,0.95"``.
+
+    Returns
+    -------
+    list of float or None
+        The levels, or ``None`` when the flag was absent, which lets the
+        caller apply a per-mode default.
+
+    Raises
+    ------
+    CliError
+        ``usage`` for anything non-numeric, showing the expected form.
+    """
     if not text:
         return None
     try:
@@ -592,7 +773,38 @@ def evaluate_cmd(
 
 
 def _evaluate_forecaster(est, inp, source, cv, metric, strategy, fh, initial_window):
-    """Backtest a forecaster with sktime's forecasting evaluate."""
+    """Backtest a forecaster over a rolling split.
+
+    Parameters
+    ----------
+    est : sktime forecaster
+        The forecaster to score.
+    inp : Input
+        Resolved data.
+    source : str
+        What ``--data`` named, for error messages.
+    cv : str or None
+        Splitter spec. When absent, an expanding window is built from ``fh``.
+    metric : list of str
+        Metric names or specs. Defaults to mean absolute percentage error.
+    strategy : {"refit", "update", "no-update_params"}
+        What happens to the model between folds.
+    fh : str or None
+        Horizon for the default splitter.
+    initial_window : int or None
+        Training size for the first fold of the default splitter.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per fold, with a ``test_<Metric>`` column per metric.
+
+    Raises
+    ------
+    CliError
+        ``usage`` for an unknown strategy, or when neither ``cv`` nor ``fh``
+        was given.
+    """
     from sktime.forecasting.model_evaluation import evaluate
 
     if strategy not in ("refit", "update", "no-update_params"):
@@ -617,31 +829,66 @@ def _evaluate_forecaster(est, inp, source, cv, metric, strategy, fh, initial_win
     )
 
 
-# sktime names the estimator argument of each panel evaluate after its scitype
-_PANEL_EVALUATE = {
-    "classifier": ("sktime.classification.model_evaluation", "classifier"),
-    "regressor": ("sktime.regression.model_evaluation", "regressor"),
-}
+def _panel_evaluate(scitype: str):
+    """Find sktime's cross-validation utility for a panel scitype.
 
-
-def _evaluate_panel(est, inp, scitype: str, cv, metric):
-    """Cross-validate a classifier or regressor with sktime's panel evaluate."""
-    target = _PANEL_EVALUATE.get(scitype)
-    if target is None:
+    sktime follows a convention rather than publishing a registry of these:
+    ``sktime.<task>.model_evaluation.evaluate`` takes the estimator as a
+    keyword named after the scitype. Resolving it by convention means a task
+    module added upstream works here with no change; a scitype with no such
+    module raises, which is how clusterers and detectors are rejected.
+    """
+    task = {"classifier": "classification", "regressor": "regression"}.get(scitype)
+    if task is None:
         raise CliError(
             "usage",
             f"sktime has no cross-validation utility for {scitype}s",
             hint="evaluate supports forecasters, classifiers, and regressors",
         )
-    module_name, arg_name = target
     try:
-        evaluate = __import__(module_name, fromlist=["evaluate"]).evaluate
-    except ImportError as err:  # pragma: no cover - depends on the sktime version
+        module = importlib.import_module(f"sktime.{task}.model_evaluation")
+        return module.evaluate, scitype
+    except (ImportError, AttributeError) as err:
         raise CliError(
             "usage",
             f"this sktime version cannot evaluate {scitype}s",
             detail=str(err),
         ) from err
+
+
+def _evaluate_panel(est, inp, scitype: str, cv, metric):
+    """Cross-validate a classifier or regressor across instances.
+
+    Parameters
+    ----------
+    est : sktime estimator
+        The classifier or regressor to score.
+    inp : Input
+        Resolved data, which must carry labels.
+    scitype : str
+        The estimator's scitype, used to find sktime's evaluate utility.
+    cv : str or None
+        Splitter spec. Defaults to 3-fold cross-validation.
+    metric : list of str
+        Metric names. Defaults to sktime's own choice for the task.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per fold.
+
+    Raises
+    ------
+    CliError
+        ``data_error`` for unlabelled data; ``usage`` for a scitype sktime
+        cannot cross-validate.
+
+    Notes
+    -----
+    ``error_score="raise"`` is passed, so a fold that fails becomes an error
+    rather than a silent ``NaN`` column.
+    """
+    evaluate, arg_name = _panel_evaluate(scitype)
 
     if inp.labels is None:
         raise CliError(
@@ -663,7 +910,26 @@ def _evaluate_panel(est, inp, scitype: str, cv, metric):
 
 
 def _resolve_panel_metric(name: str):
-    """Resolve a panel metric: an sklearn.metrics function, else a registry object."""
+    """Resolve a metric for panel evaluation.
+
+    sklearn is tried first, since panel scoring is scored per instance and
+    that is where those metrics live, falling back to sktime's registry.
+
+    Parameters
+    ----------
+    name : str
+        A metric name, e.g. ``"accuracy_score"``.
+
+    Returns
+    -------
+    callable
+        The metric.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` if neither source has it.
+    """
     import sklearn.metrics
 
     func = getattr(sklearn.metrics, name, None)
@@ -673,11 +939,22 @@ def _resolve_panel_metric(name: str):
 
 
 def _resolve_panel_cv(cv: str | None):
-    """Resolve --cv for panel evaluation, defaulting to 3-fold cross-validation.
+    """Resolve ``--cv`` for panel evaluation.
 
     Panel folds are drawn across instances rather than across time, so the
-    splitters that fit are sklearn's; they are not in sktime's registry, and
-    are injected into the spec namespace here.
+    splitters that fit are sklearn's. Those are not in sktime's registry, so
+    they are injected into the spec namespace here.
+
+    Parameters
+    ----------
+    cv : str or None
+        A splitter spec such as ``"StratifiedKFold(n_splits=5)"``.
+
+    Returns
+    -------
+    Any
+        A splitter, defaulting to shuffled 3-fold cross-validation with a
+        fixed seed so repeated runs are comparable.
     """
     import sklearn.model_selection as skcv
 
@@ -693,7 +970,21 @@ def _resolve_panel_cv(cv: str | None):
 
 
 def _emit_evaluation(results, output: Path | None, fmt: OutputFormat) -> None:
-    """Emit per-fold results plus the aggregate mean/std of every test column."""
+    """Write evaluation results, per fold and aggregated.
+
+    The aggregate is what makes runs comparable: one mean and standard
+    deviation per metric, so two candidate estimators can be ranked without
+    reading every fold.
+
+    Parameters
+    ----------
+    results : pd.DataFrame
+        One row per fold, as sktime's evaluate returns.
+    output : Path or None
+        Where to also write the per-fold rows as CSV.
+    fmt : OutputFormat
+        A concrete format from :func:`resolve_format`.
+    """
     aggregate = {
         col: {"mean": float(results[col].mean()), "std": float(results[col].std())}
         for col in results.columns

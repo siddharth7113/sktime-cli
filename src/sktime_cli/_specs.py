@@ -34,7 +34,23 @@ _SAFE_NAMES: dict[str, Any] = {
 
 
 def parse_value(text: str) -> Any:
-    """Parse a CLI value: python literal, then JSON, then raw string."""
+    """Parse a value from the command line into a Python object.
+
+    Tried in order: Python literal, then JSON, then the raw string. That order
+    means ``12`` is an int, ``true`` is the string ``"true"`` while ``True`` is
+    the boolean, and ``[1, 2]`` is a list either way.
+
+    Parameters
+    ----------
+    text : str
+        The value as typed, e.g. the right side of ``--set sp=12``.
+
+    Returns
+    -------
+    Any
+        The parsed value, or the stripped string when neither parser accepted
+        it.
+    """
     text = text.strip()
     try:
         return ast.literal_eval(text)
@@ -46,6 +62,22 @@ def parse_value(text: str) -> Any:
 
 
 def _collect_names(tree: ast.AST) -> tuple[set[str], set[str]]:
+    """Find every name a parsed spec reads and every name it assigns.
+
+    Subtracting one from the other gives the free names, which are the ones
+    that have to be resolved from the registry. A multi-line spec that binds
+    an intermediate variable should not send that variable to the registry.
+
+    Parameters
+    ----------
+    tree : ast.AST
+        The parsed spec.
+
+    Returns
+    -------
+    tuple of set of str
+        ``(loaded, stored)`` names.
+    """
     loads, stores = set(), set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Name):
@@ -56,10 +88,31 @@ def _collect_names(tree: ast.AST) -> tuple[set[str], set[str]]:
 def _resolve_namespace(
     names: set[str], extra: dict[str, Any] | None = None
 ) -> tuple[dict[str, Any], list[str]]:
-    """Import registry objects for ``names``; return (namespace, unknown).
+    """Build the namespace a spec will be evaluated in.
 
-    ``extra`` injects names the sktime registry does not carry, such as the
-    sklearn splitters that panel cross-validation expects.
+    Only the modules actually named get imported, which is what keeps spec
+    evaluation cheaper than sktime's own ``craft``.
+
+    Parameters
+    ----------
+    names : set of str
+        Free names appearing in the spec.
+    extra : dict, optional
+        Constructors to make available beyond the sktime registry, such as the
+        sklearn splitters panel cross-validation expects.
+
+    Returns
+    -------
+    tuple
+        ``(namespace, unknown)``, where ``unknown`` lists names neither the
+        registry nor ``extra`` provided. A non-empty ``unknown`` sends the
+        caller to :func:`_craft_fallback`.
+
+    Raises
+    ------
+    CliError
+        ``missing_dependency`` if a named object exists but its soft
+        dependencies are not installed.
     """
     namespace = dict(_SAFE_NAMES)
     namespace.update(extra or {})
@@ -78,7 +131,31 @@ def _resolve_namespace(
 
 
 def _craft_fallback(spec: str, unknown: list[str]):
-    """Delegate to sktime's craft for specs using non-sktime names."""
+    """Evaluate a spec that names objects outside sktime's registry.
+
+    sktime's ``craft`` can resolve sklearn names, at the cost of crawling
+    sklearn, which is slow and, in a lean environment, currently broken. It is
+    therefore a fallback rather than the primary path.
+
+    Parameters
+    ----------
+    spec : str
+        The full spec string.
+    unknown : list of str
+        Names the registry could not resolve, reported if this fails too.
+
+    Returns
+    -------
+    Any
+        The constructed object.
+
+    Raises
+    ------
+    CliError
+        ``missing_dependency`` when the crawl needs a package that is absent,
+        including the ``pytest`` case described in the module docstring;
+        ``spec_error`` when the names are simply wrong.
+    """
     try:
         from sktime.registry import craft
 
@@ -109,10 +186,41 @@ def _craft_fallback(spec: str, unknown: list[str]):
 def build_estimator(
     spec: str, sets: list[str] | tuple = (), extra_names: dict[str, Any] | None = None
 ):
-    """Construct an estimator/object from a spec string, then apply --set.
+    """Construct an sktime object from a spec string.
 
-    ``extra_names`` adds constructors to the spec namespace beyond the sktime
-    registry; see ``_resolve_namespace``.
+    This is how every command turns text into an estimator.
+
+    Parameters
+    ----------
+    spec : str
+        A constructor expression such as ``"NaiveForecaster(sp=12)"``, a
+        composition such as ``"Deseasonalizer() * NaiveForecaster()"``, a bare
+        class name, or a multi-line block ending in ``return``.
+    sets : list of str, optional
+        ``key=value`` overrides applied afterwards, where ``__`` reaches into
+        nested components.
+    extra_names : dict, optional
+        Constructors to allow beyond the sktime registry.
+
+    Returns
+    -------
+    Any
+        The constructed object. A bare class name is instantiated with its
+        defaults.
+
+    Raises
+    ------
+    CliError
+        ``spec_error`` for a spec that will not parse, names nothing known, or
+        raises while constructing; ``missing_dependency`` when a named object
+        needs a package that is absent; ``usage`` for a malformed ``--set``.
+
+    Notes
+    -----
+    Specs are evaluated, not merely parsed, because composition operators need
+    real objects. Evaluation runs with no builtins and a namespace holding
+    only registry objects and a short list of safe constructors, so a spec
+    cannot reach arbitrary Python.
     """
     spec = textwrap.dedent(spec).strip()
     if not spec:
@@ -163,7 +271,27 @@ def build_estimator(
 
 
 def apply_sets(obj, sets: list[str] | tuple):
-    """Apply repeatable ``--set key=value`` overrides via ``set_params``."""
+    """Apply ``--set key=value`` overrides to a constructed object.
+
+    Parameters
+    ----------
+    obj : Any
+        The object to modify, in place.
+    sets : list of str
+        ``key=value`` strings. ``__`` reaches into nested components, e.g.
+        ``forecaster__sp=4``. Values are parsed by :func:`parse_value`.
+
+    Returns
+    -------
+    Any
+        The same object, for chaining.
+
+    Raises
+    ------
+    CliError
+        ``usage`` for a string with no ``=``, or a parameter the object does
+        not have. The error lists the parameters it does have.
+    """
     if not sets:
         return obj
     params = {}
@@ -184,7 +312,25 @@ def apply_sets(obj, sets: list[str] | tuple):
 
 
 def resolve_metric(name_or_spec: str):
-    """Resolve a --metric value: a registry name or a full spec string."""
+    """Resolve a ``--metric`` value to a metric object.
+
+    Parameters
+    ----------
+    name_or_spec : str
+        Either a bare metric name, which is instantiated with defaults, or a
+        full spec string, which allows parameterizing the metric the same way
+        an estimator is parameterized.
+
+    Returns
+    -------
+    Any
+        The metric object.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` if the name is not a registered metric.
+    """
     if "(" in name_or_spec:
         return build_estimator(name_or_spec)
     record = _cache.lookup(name_or_spec)
@@ -200,7 +346,26 @@ def resolve_metric(name_or_spec: str):
 
 
 def resolve_cv(spec: str | None, fh, initial_window: int | None, n_obs: int):
-    """Resolve --cv: a splitter spec string, or a default expanding window."""
+    """Resolve ``--cv`` to a splitter for time series cross-validation.
+
+    Parameters
+    ----------
+    spec : str or None
+        A splitter spec string. When ``None`` an expanding window splitter is
+        built from the remaining arguments.
+    fh : ForecastingHorizon
+        Horizon each fold forecasts, used only for the default splitter.
+    initial_window : int or None
+        How many observations the first fold trains on. Defaults to half the
+        series.
+    n_obs : int
+        Length of the series, used to size that default.
+
+    Returns
+    -------
+    Any
+        A splitter object.
+    """
     if spec:
         return build_estimator(spec)
     from sktime.split import ExpandingWindowSplitter

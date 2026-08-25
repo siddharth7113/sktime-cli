@@ -67,7 +67,26 @@ UNSUPPORTED: dict[str, str] = {
 
 
 def handler_for(scitype: str) -> str:
-    """Return the ``run`` handler family for ``scitype``, or raise ``CliError``."""
+    """Find which ``run`` handler family deals with an object of this scitype.
+
+    Parameters
+    ----------
+    scitype : str
+        An sktime scitype, as returned by ``sktime.registry.scitype``.
+
+    Returns
+    -------
+    {"forecaster", "panel", "transformer", "detector"}
+        The handler family, from :data:`SUPPORTED`.
+
+    Raises
+    ------
+    CliError
+        ``usage`` either way, but with different hints: a scitype in
+        :data:`UNSUPPORTED` gets the command that does handle it, while one
+        this version has never heard of gets the issue tracker, because that
+        means sktime added a category upstream.
+    """
     handler = SUPPORTED.get(scitype)
     if handler is not None:
         return handler

@@ -2,10 +2,11 @@
 name: sktime-cli
 description: >
   Run time series machine learning from the shell with sktime-cli: discover
-  forecasters/classifiers in sktime's registry, fetch datasets, inspect and
-  split series files, fit/predict/evaluate models, and manage saved model
-  artifacts. Use for any forecasting, time series classification, regression,
-  or backtesting task when working from a terminal.
+  estimators in sktime's registry, fetch datasets, inspect and split series
+  files, fit/predict/transform/detect/evaluate models, score predictions, and
+  manage saved model artifacts. Use for any forecasting, time series
+  classification, regression, transformation, anomaly or change point
+  detection, or backtesting task when working from a terminal.
 ---
 
 # sktime-cli: time series ML from the shell
@@ -53,11 +54,16 @@ it, `installable: false` rows tell you what `uv pip install` would unlock.
 
 ```bash
 sktime-cli datasets list --source builtin --json          # offline datasets
-sktime-cli datasets list --task classification -n arrow --json
+sktime-cli datasets list --task classifier -n arrow --json
+sktime-cli datasets describe airline --no-load --json     # shape/frequency from tags
 sktime-cli datasets load airline --output airline.csv --json
 sktime-cli datasets load ucr:ArrowHead --output arrow.ts --json   # downloads
 sktime-cli data inspect airline.csv --json                # scitype/mtype/NaNs
 ```
+
+Builtin dataset ids are sktime's own names (`gun_point`, `arrow_head`,
+`hierarchical_sales_toydata`); a near miss is reported with a suggestion.
+`datasets describe --no-load` answers from tags without reading the data.
 
 Own data conventions: wide CSV = first column is the time index (override
 `--index-col`, force frequency with `--freq M`); a single value column becomes
@@ -70,6 +76,9 @@ orient. Convert between them with `sktime-cli data convert`.
 ```bash
 # hold out the last 12 points for honest evaluation
 sktime-cli data split airline.csv --test-size 12 --json
+# or write one file pair per cross-validation fold:
+sktime-cli data split airline.csv \
+  --cv "ExpandingWindowSplitter(initial_window=72, step_length=12, fh=[1,2,3])" --json
 
 # fit on train, save the model artifact
 sktime-cli run fit "NaiveForecaster(sp=12)" --data airline_train.csv \
@@ -86,6 +95,71 @@ sktime-cli run fit-predict "NaiveForecaster(sp=12)" --data airline.csv \
 `--fh` grammar: `1:12` (inclusive range), `1,2,12`, or `6`. Exogenous data:
 `--exog X.csv` at fit and predict time. Multi-column files: `--target <col>`
 picks y, remaining columns become X.
+
+## Task: uncertainty around a forecast
+
+```bash
+sktime-cli run predict --model model.zip --fh 1:12 --interval 0.8,0.95 --json
+sktime-cli run predict --model model.zip --fh 1:12 --quantiles 0.1,0.9 --json
+sktime-cli run predict --model model.zip --fh 1:12 --var --json
+sktime-cli run predict --model model.zip --data airline.csv --residuals --json
+```
+
+Results are **long form**: `--interval` gives columns
+`variable, coverage, bound, value` and `--quantiles` gives
+`variable, quantile, value`, so the column count never changes with the number
+of levels requested. Add `--wide` for sktime's native columns joined with `__`.
+Not every forecaster supports this; exit 2 names the missing tag. Find ones
+that do:
+
+```bash
+sktime-cli registry search forecaster -t capability:pred_int=True --json
+```
+
+## Task: transform a series
+
+```bash
+sktime-cli run transform "Detrender()" --data airline.csv -o detrended.csv --json
+sktime-cli run transform "Differencer()" --data airline.csv \
+  --model-out diff.zip -o out.csv --json        # persist the fitted transformer
+sktime-cli run transform --model diff.zip --data airline.csv --inverse --json
+```
+
+`--inverse` needs `capability:inverse_transform`; exit 2 says so and shows the
+search that finds transformers which have it.
+
+## Task: detect anomalies, change points, or segments
+
+```bash
+sktime-cli run detect "HampelDetector()" --data series.csv --json
+sktime-cli run detect "ClusterSegmenter()" --data series.csv --kind segments --json
+sktime-cli run detect "MovingWindow()" --data series.csv --kind scores --json
+```
+
+`--kind auto` (the default) reads the detector's `task` tag. Segment results
+are flattened to `start`/`end` columns. Discover detectors with
+`registry search detector --with-tags task --json`.
+
+## Task: score predictions you already have
+
+```bash
+sktime-cli metrics list metric_forecasting --json
+sktime-cli metrics score --true test.csv --pred pred.csv \
+  --metric MeanAbsolutePercentageError --metric MeanAbsoluteError --json
+# metrics scored against the training series need it explicitly:
+sktime-cli metrics score --true test.csv --pred pred.csv \
+  --metric MeanAbsoluteScaledError --train train.csv --json
+```
+
+## Task: check an estimator against sktime's API
+
+```bash
+sktime-cli check "NaiveForecaster(sp=12)" --json          # full contract suite
+sktime-cli check "MyForecaster()" --failed-only --json    # only what breaks
+```
+
+Exit 1 when any check fails. Use it to validate a third-party estimator, or to
+confirm a composed spec is a well-formed sktime object before running it.
 
 ## Task: backtest / compare forecasters
 
@@ -111,8 +185,16 @@ sktime-cli run predict --model clf.zip --data test.ts --json
 sktime-cli run predict --model clf.zip --data test.ts --proba --json  # per-class probs
 ```
 
-Panel data must be `.ts` files (or a named classification dataset). Regressors
-and clusterers work the same way (`registry search regressor|clusterer`).
+Panel data comes from `.ts` files, a named classification dataset, or a
+long-format file read with `--long --id-col <instance> --time-col <time>`.
+Regressors and clusterers work the same way
+(`registry search regressor|clusterer`). Cross-validate a classifier with
+`run evaluate`, which uses sklearn splitters for panel folds:
+
+```bash
+sktime-cli run evaluate "DummyClassifier()" --data train.ts \
+  --cv "StratifiedKFold(n_splits=5)" --metric accuracy_score --json
+```
 
 ## Task: work with saved models
 

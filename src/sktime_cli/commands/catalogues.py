@@ -20,6 +20,13 @@ CATALOGUE_SCITYPE = "catalogue"
 
 
 def _records() -> list[dict]:
+    """Return the registry records of every catalogue this sktime ships.
+
+    Returns
+    -------
+    list of dict
+        Registry records carrying the catalogue scitype.
+    """
     return [
         record
         for record in _cache.get_registry()
@@ -28,6 +35,23 @@ def _records() -> list[dict]:
 
 
 def _lookup(name: str) -> dict:
+    """Find one catalogue by exact name.
+
+    Parameters
+    ----------
+    name : str
+        Catalogue name, e.g. ``"BakeOffCatalogue"``.
+
+    Returns
+    -------
+    dict
+        Its registry record.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` pointing at the listing command.
+    """
     for record in _records():
         if record["name"] == name:
             return record
@@ -98,7 +122,21 @@ def get(
 
 
 def _entry(item):
-    """Render one catalogue entry as a spec string where possible."""
+    """Render one catalogue entry as a string usable as a spec.
+
+    Catalogues mix bare names with ``{name: spec}`` pairs; the pair's value is
+    the constructed form, which is what a caller can pass back to ``run``.
+
+    Parameters
+    ----------
+    item : str or dict
+        One entry as the catalogue returned it.
+
+    Returns
+    -------
+    str
+        The entry as a spec string.
+    """
     if isinstance(item, dict):
         # {name: spec} pairs carry the constructed form as the value
         return next(iter(item.values()))

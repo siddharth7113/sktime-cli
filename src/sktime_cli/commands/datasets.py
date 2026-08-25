@@ -19,7 +19,7 @@ app = typer.Typer(no_args_is_help=True)
 def list_(
     source: str | None = typer.Option(None, "--source", help="builtin|ucr|tsf|fpp3."),
     task: str | None = typer.Option(
-        None, "--task", help="forecasting|classification|regression."
+        None, "--task", help="forecaster|classifier|regressor (sktime scitype names)."
     ),
     name: str | None = typer.Option(
         None, "--name", "-n", help="Substring match on dataset name."
@@ -60,7 +60,7 @@ def describe(
     record: dict = {"name": canonical, "source": _datasets.display_source(source)}
 
     if source in _datasets.REMOTE_SOURCES:
-        record["task"] = "classification" if source == "ucr" else "forecasting"
+        record["task"] = "classifier" if source == "ucr" else "forecaster"
         record["note"] = "remote dataset; fetch it with: sktime-cli datasets load " + (
             f"{source}:{canonical}"
         )
@@ -85,19 +85,19 @@ def describe(
 
     loaded = _datasets.load(source, canonical)
     record["task"] = loaded["task"]
-    if "y" in loaded and loaded["task"] == "forecasting":
+    if "y" in loaded and loaded["task"] == "forecaster":
         y = loaded["y"]
         record["shape"] = list(getattr(y, "shape", [len(y)]))
         record["index_type"] = type(y.index).__name__
     if "X" in loaded and loaded["X"] is not None:
         X = loaded["X"]
         record["X_shape"] = list(X.shape)
-    if "y" in loaded and loaded["task"] in ("classification", "regression"):
+    if "y" in loaded and loaded["task"] in ("classifier", "regressor"):
         import pandas as pd
 
         y = pd.Series(loaded["y"])
         record["n_instances"] = int(len(y))
-        if loaded["task"] == "classification":
+        if loaded["task"] == "classifier":
             record["classes"] = sorted(str(c) for c in y.unique())
     emit_record(record, fmt, quiet_value=canonical)
 
@@ -129,7 +129,7 @@ def load(
     loaded = _datasets.load(source, canonical, split=split)
     task = loaded["task"]
 
-    default_ext = "ts" if task in ("classification", "regression") else "csv"
+    default_ext = "ts" if task in ("classifier", "regressor") else "csv"
     ext = (file_format or default_ext).lower()
     if output is None:
         stem = (
@@ -146,7 +146,7 @@ def load(
         "task": task,
     }
 
-    if task in ("classification", "regression"):
+    if task in ("classifier", "regressor"):
         X, y = loaded["X"], loaded["y"]
         if ext == "ts":
             files += _io.write_any(X, output, "ts", y=y)
@@ -162,7 +162,7 @@ def load(
         manifest["n_instances"] = int(len(X))
         import pandas as pd
 
-        if task == "classification":
+        if task == "classifier":
             manifest["classes"] = sorted(str(c) for c in pd.Series(y).unique())
     else:
         y = loaded["y"]

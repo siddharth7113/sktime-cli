@@ -48,3 +48,61 @@ jobs:
         run: uv sync --no-sources
       - name: Run tests
         run: uv run --no-sources pytest -n auto
+
+  # The Python matrix alone cannot catch an sktime release changing behaviour
+  # under us, so pin the sktime axis too: the declared floor, and the newest
+  # release. Both are blocking; a break here is a break for users.
+  sktime-versions:
+    name: Test (sktime ${{ matrix.sktime }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sktime: "1.1.0"
+            spec: "sktime==1.1.0"
+          - sktime: "latest"
+            spec: "sktime"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --no-sources
+      - name: Pin sktime to ${{ matrix.sktime }}
+        run: uv pip install --upgrade "${{ matrix.spec }}"
+      - name: Report the resolved version
+        run: uv run --no-sources sktime-cli version
+      - name: Run tests
+        run: uv run --no-sources pytest -n auto
+
+  # Early warning only: sktime main and upstream deprecations are allowed to
+  # break without failing the build, so the signal arrives before a release
+  # turns it into a user-visible bug.
+  upstream-drift:
+    name: Upstream drift (${{ matrix.check }})
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [sktime-main, deprecations]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --no-sources
+      - name: Install sktime from main
+        if: matrix.check == 'sktime-main'
+        run: uv pip install --upgrade "sktime @ git+https://github.com/sktime/sktime.git@main"
+      - name: Run tests
+        if: matrix.check == 'sktime-main'
+        run: uv run --no-sources pytest -n auto
+      # Turn upstream FutureWarnings into failures so a scheduled removal is
+      # visible while there is still time to act on it.
+      - name: Run tests with deprecations as errors
+        if: matrix.check == 'deprecations'
+        run: uv run --no-sources pytest -n auto -W error::FutureWarning -W error::DeprecationWarning
