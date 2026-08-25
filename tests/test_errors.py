@@ -140,3 +140,36 @@ def test_sibling_directories_are_not_inside_sktime(monkeypatch):
     root = os.path.normcase(os.path.join(os.sep, "env", "sktime"))
     monkeypatch.setattr(guard, "_sktime_root", lambda: root)
     assert not guard._in_sktime(os.path.join(os.sep, "env", "sktime_extras", "x.py"))
+
+
+# check_estimator's message offers two ways to get pytest and restates the
+# first, so a naive scan reported it as three requirements.
+SKBASE_ALTERNATIVES_REPEATED = (
+    "check_estimator is a testing utility for developers, and requires pytest to "
+    "be present in the python environment, but pytest was not found. Please run: "
+    "`pip install pytest` to install the pytest package. To install sktime with "
+    "all developer dependencies, run: `pip install sktime[dev]`To install the "
+    "requirement 'pytest', please run: `pip install pytest`"
+)
+
+
+def test_a_restated_requirement_is_reported_once():
+    """`check` used to hint `uv pip install pytest sktime pytest`."""
+    assert packages_from_error(ModuleNotFoundError(SKBASE_ALTERNATIVES_REPEATED)) == [
+        "pytest",
+        "sktime[dev]",
+    ]
+
+
+def test_distinct_alternatives_are_all_kept():
+    """Deduplication must not collapse genuinely different requirements."""
+    assert packages_from_error(ModuleNotFoundError(SKBASE_MULTI)) == [
+        "scipy<1.7.0",
+        "numpy",
+    ]
+
+
+def test_extras_are_quoted_for_the_shell():
+    """Unquoted, sktime[dev] is a glob pattern and the install command fails."""
+    error = from_module_not_found(ModuleNotFoundError(SKBASE_ALTERNATIVES_REPEATED))
+    assert error.hint == 'uv pip install pytest "sktime[dev]"'

@@ -85,3 +85,20 @@ def test_resolve_metric_unknown():
     with pytest.raises(CliError) as excinfo:
         resolve_metric("NotAMetric")
     assert excinfo.value.code == "not_found"
+
+
+def test_sklearn_metric_is_pointed_at_the_command_that_takes_it():
+    """`metrics score --metric accuracy_score` used to send you to search
+    forecasting metrics, which will never contain it."""
+    with pytest.raises(CliError) as excinfo:
+        resolve_metric("accuracy_score")
+    error = excinfo.value
+    assert error.code == "not_found"
+    assert "run evaluate" in error.hint
+    assert "metric_forecasting" not in error.hint
+
+
+def test_an_unknown_metric_name_points_at_the_listing_command():
+    with pytest.raises(CliError) as excinfo:
+        resolve_metric("MeanAbsolutePercentageErrr")
+    assert excinfo.value.hint == "list metrics with: sktime-cli metrics list"

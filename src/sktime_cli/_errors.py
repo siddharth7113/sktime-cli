@@ -108,7 +108,10 @@ def missing_dependency(what: str, packages: list[str] | str) -> CliError:
             message=f"{what} requires a package that is not installed",
             hint="install the package named in the detail below",
         )
-    pkgs = " ".join(f'"{p}"' if any(c in p for c in "<>=!") else p for p in packages)
+    # Extras and version constraints both need quoting: an unquoted
+    # sktime[dev] is a glob pattern in most shells, and an unquoted scipy<1.7.0
+    # is a redirection.
+    pkgs = " ".join(f'"{p}"' if any(c in p for c in "<>=![]") else p for p in packages)
     return CliError(
         code="missing_dependency",
         message=f"{what} requires missing package(s): {', '.join(packages)}",
@@ -123,6 +126,33 @@ def missing_dependency(what: str, packages: list[str] | str) -> CliError:
 _PIP_INSTALL = re.compile(r"`pip install ([^`]+)`")
 _REQUIRES = re.compile(r"requires package (.+?) to be present")
 _QUOTED = re.compile(r"'([^']+)'")
+
+
+def _deduplicate(requirements: list[str]) -> list[str]:
+    """Drop repeats, keeping the order the message gave.
+
+    An upstream message often restates the same fix more than once, so a naive
+    scan reports it twice and the install hint names it twice. Alternatives
+    that genuinely differ are all kept, which is what the caller renders.
+
+    Parameters
+    ----------
+    requirements : list of str
+        Requirement strings parsed out of an import error.
+
+    Returns
+    -------
+    list of str
+        The same requirements, first occurrence order preserved, without
+        repeats.
+    """
+    seen: set[str] = set()
+    unique = []
+    for req in requirements:
+        if req not in seen:
+            seen.add(req)
+            unique.append(req)
+    return unique
 
 
 def packages_from_error(err: BaseException) -> list[str]:
@@ -158,10 +188,10 @@ def packages_from_error(err: BaseException) -> list[str]:
     message = str(err)
     installs = _PIP_INSTALL.findall(message)
     if installs:
-        return [pkg.strip() for pkg in installs]
+        return _deduplicate([pkg.strip() for pkg in installs])
     requires = _REQUIRES.search(message)
     if requires:
-        return _QUOTED.findall(requires.group(1))
+        return _deduplicate(_QUOTED.findall(requires.group(1)))
     return []
 
 

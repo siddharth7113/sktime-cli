@@ -306,13 +306,21 @@ def print_error(payload: dict, human: bool) -> None:
     """
     if human:
         from rich.console import Console
+        from rich.markup import escape
 
         console = Console(stderr=True)
         body = payload["error"]
-        console.print(f"[bold red]error[/bold red] ({body['code']}): {body['message']}")
+        # Escape every interpolated field. Error text carries square brackets
+        # routinely, in package extras such as sktime[dev] and in spec strings
+        # such as fh=[1,2,3], and Rich would read those as markup tags and
+        # drop them. A hint that silently loses an extra is worse than no hint.
+        console.print(
+            f"[bold red]error[/bold red] ({escape(body['code'])}): "
+            f"{escape(body['message'])}"
+        )
         if body.get("hint"):
-            console.print(f"[yellow]hint[/yellow]: {body['hint']}")
+            console.print(f"[yellow]hint[/yellow]: {escape(body['hint'])}")
         if body.get("detail"):
-            console.print(f"[dim]{body['detail']}[/dim]")
+            console.print(f"[dim]{escape(body['detail'])}[/dim]")
     else:
         print(_dump(payload), file=sys.stderr)
