@@ -33,6 +33,13 @@ def list_(
         raise CliError(
             "usage", f"unknown --source {source!r}: use builtin|ucr|tsf|fpp3"
         )
+    tasks = _datasets.known_tasks()
+    if task is not None and task not in tasks:
+        raise CliError(
+            "usage",
+            f"unknown --task {task!r}",
+            hint=f"use one of: {', '.join(tasks)}",
+        )
     rows = _datasets.listing(source=source, task=task, contains=name)
     emit_table(
         rows,

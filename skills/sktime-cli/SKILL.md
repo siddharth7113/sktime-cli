@@ -31,7 +31,7 @@ Fitted models are `.zip` artifacts on disk; there is no session state.
   Forecaster ensembles are a class, not an operator:
   `"EnsembleForecaster([('a', AutoETS()), ('b', NaiveForecaster())])"`.
   Override params with repeatable `--set key=value` (`__` reaches nested
-  components, e.g. `--set forecaster__sp=4`).
+  components, named after the class, e.g. `--set NaiveForecaster__sp=4`).
 - `SKTIME_CLI_HOME` (default `~/.cache/sktime-cli`) holds the registry cache,
   dataset downloads, and default model output. Health check: `sktime-cli doctor`.
 
@@ -42,7 +42,7 @@ sktime-cli registry types --json                  # 25 object categories
 sktime-cli registry search forecaster --json      # all forecasters
 # filter by capability tags (AND across -t, comma = OR):
 sktime-cli registry search forecaster -t capability:missing_values=true \
-  -t "scitype:y=univariate,both" --installable-only --json
+  -t capability:insample=true --installable-only --json
 sktime-cli registry tags forecaster --json        # all filterable tags
 sktime-cli registry describe NaiveForecaster --json   # params, tags, deps
 ```
@@ -132,8 +132,7 @@ search that finds transformers which have it.
 
 ```bash
 sktime-cli run detect "HampelDetector()" --data series.csv --json
-sktime-cli run detect "ClusterSegmenter()" --data series.csv --kind segments --json
-sktime-cli run detect "MovingWindow()" --data series.csv --kind scores --json
+sktime-cli run detect "CAPA()" --data series.csv --kind segments --json
 ```
 
 `--kind auto` (the default) reads the detector's `task` tag. Segment results
@@ -193,7 +192,7 @@ Regressors and clusterers work the same way
 
 ```bash
 sktime-cli run evaluate "DummyClassifier()" --data train.ts \
-  --cv "StratifiedKFold(n_splits=5)" --metric accuracy_score --json
+  --cv "KFold(n_splits=5)" --metric accuracy_score --json
 ```
 
 ## Task: work with saved models

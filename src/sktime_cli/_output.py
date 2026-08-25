@@ -202,6 +202,10 @@ def emit_table(
     """
     if columns is None:
         columns = list(rows[0].keys()) if rows else []
+    if not columns and fmt == OutputFormat.agent:
+        # an empty result still owes agent format a header line: a script that
+        # skips line 1 must not silently consume its first row of data
+        columns = ["name"]
     if fmt == OutputFormat.json:
         print(_dump(rows))
     elif fmt == OutputFormat.agent:

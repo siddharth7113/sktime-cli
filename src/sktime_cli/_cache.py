@@ -317,11 +317,55 @@ def import_object(record: dict):
     """
     import importlib
 
-    from sktime_cli._errors import missing_dependency, packages_from_error
+    from sktime_cli._errors import missing_dependency
 
     try:
         module = importlib.import_module(record["module"])
         return getattr(module, record["name"])
     except ModuleNotFoundError as err:
-        deps = record.get("python_dependencies") or packages_from_error(err)
-        raise missing_dependency(record["name"], deps) from err
+        raise missing_dependency(
+            record["name"], unmet_dependencies(record, err)
+        ) from err
+
+
+def unmet_dependencies(record: dict, err: Exception | None = None) -> list[str]:
+    """Narrow a record's declared dependencies to the ones not installed.
+
+    The declared list is everything an estimator needs, not what is missing, so
+    reporting it whole tells the user to install packages they already have.
+    Each requirement is re-checked here instead.
+
+    Parameters
+    ----------
+    record : dict
+        A registry record.
+    err : Exception, optional
+        The import error, if one was raised. Used as a fallback when the record
+        declares no dependencies.
+
+    Returns
+    -------
+    list of str
+        The requirements that are not satisfied. Falls back to the declared
+        list if every one of them looks satisfied, since something clearly is
+        not.
+    """
+    from sktime_cli._errors import packages_from_error
+
+    declared = record.get("python_dependencies") or []
+    if declared:
+        try:
+            from skbase.utils.dependencies import _check_soft_dependencies
+
+            unmet = [
+                dep
+                for dep in declared
+                if not _check_soft_dependencies(dep, severity="none")
+            ]
+            if unmet:
+                return unmet
+        except ImportError:  # pragma: no cover - skbase ships with sktime
+            return declared
+    if err is not None:
+        return packages_from_error(err) or declared
+    return declared

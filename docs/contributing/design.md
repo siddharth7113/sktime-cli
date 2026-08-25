@@ -103,7 +103,7 @@ How it works (`_specs.build_estimator`):
    or attribute access sneaks in through a spec.
 4. Apply `--set key=value` overrides via sklearn's `set_params`, so nested
    components are reachable with the `__` convention
-   (`--set forecaster__sp=4`).
+   (`--set NaiveForecaster__sp=4`, since a step is named after its class).
 
 `sktime.registry.craft` is only a **fallback** for names the registry doesn't
 know (typically raw sklearn estimators). Upstream `craft` crawls sklearn and

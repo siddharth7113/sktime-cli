@@ -169,6 +169,41 @@ def segments_to_frame(segments):
     return out
 
 
+def name_columns_like(frame, estimator):
+    """Replace positional column labels with the variable names a model saw.
+
+    ``predict_var`` labels its columns ``0, 1, ...`` while ``predict_interval``
+    and ``predict_quantiles`` use the variable name. Relabelling here keeps the
+    ``variable`` field meaning the same thing across all three.
+
+    Parameters
+    ----------
+    frame : pd.DataFrame
+        A result whose columns may be positional.
+    estimator : sktime forecaster
+        The fitted forecaster, read for the names it was trained on.
+
+    Returns
+    -------
+    pd.DataFrame
+        The frame, with variable names where they could be recovered.
+    """
+    names = getattr(estimator, "_y", None)
+    names = getattr(names, "name", None) or getattr(
+        getattr(estimator, "_y", None), "columns", None
+    )
+    if names is None:
+        return frame
+    if isinstance(names, str):
+        names = [names]
+    names = list(names)
+    if len(names) != len(frame.columns):
+        return frame
+    out = frame.copy()
+    out.columns = names
+    return out
+
+
 def to_frame(result: Any, name: str = "value"):
     """Coerce any sktime result into a DataFrame that can be written out.
 

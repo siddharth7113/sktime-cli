@@ -16,8 +16,6 @@ from sktime_cli._output import OutputFormat, emit_record, emit_table, resolve_fo
 
 app = typer.Typer(no_args_is_help=True)
 
-CATALOGUE_SCITYPE = "catalogue"
-
 
 def _records() -> list[dict]:
     """Return the registry records of every catalogue this sktime ships.
@@ -28,9 +26,7 @@ def _records() -> list[dict]:
         Registry records carrying the catalogue scitype.
     """
     return [
-        record
-        for record in _cache.get_registry()
-        if CATALOGUE_SCITYPE in record["scitypes"]
+        record for record in _cache.get_registry() if "catalogue" in record["scitypes"]
     ]
 
 

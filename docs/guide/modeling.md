@@ -55,7 +55,7 @@ the `__` convention reaches nested components. The flag is repeatable:
 ```bash
 sktime-cli run fit "Deseasonalizer() * NaiveForecaster()" \
     --data airline \
-    --set forecaster__sp=4 \
+    --set NaiveForecaster__sp=4 \
     --set forecaster__strategy=mean
 ```
 
@@ -69,7 +69,7 @@ sktime-cli run fit "NaiveForecaster(sp=12)" \
     --model-out model.zip
 ```
 
-`--data` takes a file path or a dataset name. An existing file wins, so a
+`--data` takes a file path or a dataset name. A path is read as a file and a
 local `airline.csv` shadows the built-in `airline` dataset.
 
 The other input options match the ones in [Working with data](data.md):
@@ -114,9 +114,12 @@ The CLI flattens them to long form instead, so the columns are fixed:
 
 | flag | columns |
 | --- | --- |
-| `--interval` | `variable`, `coverage`, `bound`, `value` |
-| `--quantiles` | `variable`, `quantile`, `value` |
-| `--var` | `variable`, `value` |
+| `--interval` | `time`, `variable`, `coverage`, `bound`, `value` |
+| `--quantiles` | `time`, `variable`, `quantile`, `value` |
+| `--var` | `time`, `variable`, `value` |
+
+The first column is the time index, named `time` when the input had no index
+name. For panel input it is the index levels instead.
 
 Asking for three coverages instead of one adds rows, never columns, which is
 what makes the output safe to parse. Pass `--wide` if you want sktime's native
@@ -172,7 +175,6 @@ reconciliation runs through this command too.
 ```bash
 sktime-cli run detect "HampelDetector()" --data series.csv
 sktime-cli run detect "ClusterSegmenter()" --data series.csv --kind segments
-sktime-cli run detect "MovingWindow()" --data series.csv --kind scores
 ```
 
 `--kind` defaults to `auto`, which reads the detector's `task` tag and picks
@@ -237,7 +239,7 @@ sklearn's, and `--cv` accepts them by name:
 ```bash
 sktime-cli run evaluate "DummyClassifier()" \
     --data train.ts \
-    --cv "StratifiedKFold(n_splits=5)" \
+    --cv "KFold(n_splits=5)" \
     --metric accuracy_score
 ```
 

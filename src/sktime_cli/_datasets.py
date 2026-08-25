@@ -103,6 +103,24 @@ def task_of(record: dict) -> str:
     return next((v for v in values if v), "unknown")
 
 
+def known_tasks() -> tuple[str, ...]:
+    """Return every task value a dataset in the catalogue declares.
+
+    Derived from the datasets themselves plus the remote sources, so it stays
+    correct as sktime adds dataset categories.
+
+    Returns
+    -------
+    tuple of str
+        Sorted task names, in sktime's scitype vocabulary.
+    """
+    tasks = {task_of(record) for record in object_index().values()}
+    tasks.update(entry["task"] for entry in LOADER_ONLY.values())
+    tasks.update(_REMOTE_TASK.values())
+    tasks.discard("unknown")
+    return tuple(sorted(tasks))
+
+
 def object_index() -> dict[str, dict]:
     """Build the catalogue of built-in datasets from the registry.
 
@@ -251,9 +269,7 @@ def _load_object(name: str, split: str | None) -> dict[str, Any]:
     """
     record = object_index()[name]
     if not record.get("installable", True):
-        raise missing_dependency(
-            f"dataset {name}", record.get("python_dependencies") or []
-        )
+        raise missing_dependency(f"dataset {name}", _cache.unmet_dependencies(record))
     dataset = _cache.import_object(record)()
     task = task_of(record)
 

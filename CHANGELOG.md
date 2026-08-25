@@ -101,6 +101,33 @@ in 0.0.1, reaching about 40% of the registry; it now dispatches on 8, reaching
   every sktime soft-dependency check, not just datasets, and needs no table of
   which feature requires which package.
 - Error messages no longer hardcode `v0.0.1`.
+- Missing-dependency errors named every package an estimator declares, not the
+  ones actually absent, so the hint told you to install packages you already
+  had and contradicted `doctor`. Each requirement is now re-checked.
+- `run detect --kind scores` leaked `NotImplementedError` from sktime for
+  detectors that do not implement it. It is now a usage error naming the kinds
+  that do work.
+- A nested `--set` key that does not exist raised a bare `KeyError` with exit 1,
+  while a top-level one was correctly a usage error. Both are now usage errors
+  listing the valid parameters.
+- `registry search` returned an empty list for a tag no object of that scitype
+  carries, which reads the same as a genuine no-match. It is now a `not_found`
+  error with close matches, which also catches tags that exist but not on the
+  scitype being searched.
+- `datasets list --task` accepted any value and silently returned nothing.
+  It now validates like `--source` does.
+- `--format agent` printed no header line at all for an empty result, so a
+  script skipping the header would consume its first row of data.
+- `run predict --var` labelled its variable column `0` while `--interval` and
+  `--quantiles` used the series name. All three now agree.
+- Documentation fixes found by running every example: the `scitype:y` tag
+  filter (no forecaster carries it), the `--set forecaster__sp` key (steps are
+  named after their class), the `StratifiedKFold` backtest example (sktime does
+  not pass `y` to the splitter), the `--kind scores` example, the `.npy` output
+  claim, the exit-code shell snippet (`$?` after `if ! cmd` is always 0), the
+  "an existing file wins" description of `--data`, the probabilistic column
+  table (it omitted the time index), the sample error record, the README command
+  table, and the version stated in the README and docs index.
 
 ## 0.0.1 (2026-08-25)
 

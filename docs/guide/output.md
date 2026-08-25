@@ -58,8 +58,8 @@ single JSON object:
 {
   "error": {
     "code": "missing_dependency",
-    "message": "AutoARIMA requires pmdarima",
-    "hint": "uv pip install \"pmdarima\"",
+    "message": "AutoARIMA requires missing package(s): pmdarima",
+    "hint": "uv pip install pmdarima",
     "command": "run fit"
   }
 }
@@ -67,10 +67,11 @@ single JSON object:
 
 In `human` format the same record is rendered as styled text.
 
-The `hint` field is a commitment, not a convenience. Wherever the CLI can know
-the fix, meaning a package to install, a set of valid names, or the right flag
-syntax, the hint states it. The test suite treats a missing hint on those
-paths as a bug.
+`code`, `message`, and `command` are always present. `hint` and `detail` are
+optional: `hint` appears wherever the CLI can know the fix, meaning a package to
+install, a set of valid names, or the right flag syntax, and `detail` carries
+longer context such as the underlying exception. Branch on `code`, which is
+stable, and treat `hint` as present-if-useful.
 
 ## Exit codes
 
@@ -90,13 +91,15 @@ Exit code `3` is worth special handling in scripts, because it means the
 command would have worked with one more package installed:
 
 ```bash
-if ! sktime-cli run fit "AutoARIMA()" --data airline --json; then
-  status=$?
-  if [ "$status" -eq 3 ]; then
-    echo "Install the missing dependency and retry."
-  fi
+sktime-cli run fit "AutoARIMA()" --data airline --json
+status=$?
+if [ "$status" -eq 3 ]; then
+  echo "Install the missing dependency and retry."
 fi
 ```
+
+Capture `$?` on its own line, immediately after the command. Inside
+`if ! cmd; then`, `$?` holds the negated status and is always `0`.
 
 Tracebacks never reach the user. When an unexpected exception occurs, the CLI
 records the failing location in the error's `detail` field instead.

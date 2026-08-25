@@ -16,8 +16,6 @@ from sktime_cli._models import estimator_scitype
 from sktime_cli._output import OutputFormat, emit_record, emit_table, resolve_format
 from sktime_cli._specs import build_estimator
 
-_PASSED = "PASSED"
-
 
 def _split_csv(value: str | None) -> list[str] | None:
     """Split a comma-separated option value into a list.
@@ -55,7 +53,9 @@ def _rows(results: dict) -> list[dict]:
     """
     rows = []
     for fixture, outcome in sorted(results.items()):
-        passed = isinstance(outcome, str) and outcome == _PASSED
+        # check_estimator reports a pass as the string "PASSED" and a failure
+        # as the exception that was raised
+        passed = outcome == "PASSED"
         rows.append(
             {
                 "test": fixture,

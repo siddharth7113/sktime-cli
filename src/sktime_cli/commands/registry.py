@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import difflib
+
 import typer
 
 from sktime_cli import _cache
@@ -96,6 +98,52 @@ def _validate_scitype(scitype: str) -> None:
         )
 
 
+def _validate_tags(names: list[str], scitype: str | None) -> None:
+    """Reject tag names that cannot match, so a typo is not an empty result.
+
+    Filtering on a tag no object carries can only return nothing, which reads
+    the same as a genuine no-match. Restricting to a scitype narrows this
+    further: a tag can be real and still never appear on the kind of object
+    being searched, which is the more common mistake, since sktime moves tags
+    between object types across releases.
+
+    Parameters
+    ----------
+    names : list of str
+        Tag names from ``--filter-tag`` and ``--with-tags``.
+    scitype : str or None
+        The scitype being searched, if one was given.
+
+    Raises
+    ------
+    CliError
+        ``not_found`` naming the tags that cannot match, with close matches
+        drawn from the tags that are actually available here.
+    """
+    if not names:
+        return
+    available = {
+        tag
+        for record in _cache.get_registry()
+        if not scitype or scitype in record["scitypes"]
+        for tag in record["tags"]
+    }
+    unknown = [name for name in names if name not in available]
+    if not unknown:
+        return
+    subject = f"{scitype}s" if scitype else "sktime objects"
+    close = difflib.get_close_matches(unknown[0], sorted(available), n=3)
+    raise CliError(
+        "not_found",
+        f"no {subject} carry the tag(s): {', '.join(unknown)}",
+        hint=(
+            f"did you mean: {', '.join(close)}"
+            if close
+            else f"list tags with: sktime-cli registry tags {scitype or ''}".strip()
+        ),
+    )
+
+
 @app.command("search")
 @handle_errors
 def search(
@@ -130,6 +178,7 @@ def search(
         _validate_scitype(scitype)
     filters = _parse_tag_filters(filter_tag)
     extra_tags = [t.strip() for t in with_tags.split(",")] if with_tags else []
+    _validate_tags([*filters, *extra_tags], scitype)
 
     rows = []
     for record in _cache.get_registry():

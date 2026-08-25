@@ -278,7 +278,10 @@ def _predict_forecaster(est, fh_text, X, mode: str, levels, wide: bool):
             raw = est.predict_quantiles(fh=fh, X=X, alpha=levels or [0.05, 0.95])
             return shape(raw, _frames.QUANTILE_LEVELS)
         if mode == "var":
-            return shape(est.predict_var(fh=fh, X=X), _frames.VAR_LEVELS)
+            # predict_var labels its column 0 rather than by variable; relabel
+            # so --var reports the same name --interval and --quantiles do
+            raw = est.predict_var(fh=fh, X=X)
+            return shape(_frames.name_columns_like(raw, est), _frames.VAR_LEVELS)
     except ValueError as err:
         if "fh" in str(err).lower():
             raise CliError(
@@ -343,13 +346,22 @@ def _detector_result(est, X, kind: str):
     if kind == "auto":
         task = str(est.get_tag("task", "segmentation", raise_error=False))
         kind = "segments" if "segment" in task else "points"
-    if kind == "points":
-        return _frames.to_frame(est.predict_points(X), name="point"), kind
-    if kind == "segments":
-        return _frames.segments_to_frame(est.predict_segments(X)), kind
-    if kind == "scores":
+    if kind not in ("points", "segments", "scores"):
+        raise CliError("usage", f"invalid --kind {kind!r}: use points|segments|scores")
+    try:
+        if kind == "points":
+            return _frames.to_frame(est.predict_points(X), name="point"), kind
+        if kind == "segments":
+            return _frames.segments_to_frame(est.predict_segments(X)), kind
         return _frames.to_frame(est.predict_scores(X), name="score"), kind
-    raise CliError("usage", f"invalid --kind {kind!r}: use points|segments|scores")
+    except NotImplementedError as err:
+        # the base class raises this for a method the detector never defined
+        raise CliError(
+            "usage",
+            f"{type(est).__name__} cannot report {kind}",
+            hint="try --kind points or --kind segments",
+            detail=str(err),
+        ) from err
 
 
 def _emit_result(

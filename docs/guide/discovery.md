@@ -44,11 +44,12 @@ that value's alternatives with OR:
 ```bash
 sktime-cli registry search forecaster \
     -t capability:missing_values=true \
-    -t "scitype:y=univariate,both"
+    -t capability:insample=true
 ```
 
-This search keeps forecasters that handle missing values and accept either
-univariate or both univariate and multivariate targets.
+This search keeps forecasters that handle missing values and can also predict
+in-sample. Tags are specific to a scitype: filtering on one that no object of
+that kind carries is an error, not an empty result, so a typo says so.
 
 To list the tags that apply to a scitype, along with their types and
 descriptions, use `registry tags`:
@@ -88,7 +89,7 @@ compare candidates on one capability:
 ```bash
 sktime-cli registry search forecaster \
     -t capability:missing_values=true \
-    --with-tags "capability:pred_int,scitype:y" \
+    --with-tags "capability:pred_int,capability:insample" \
     --limit 20
 ```
 

@@ -134,7 +134,8 @@ sktime-cli data convert panel.ts --output panel.csv --to-mtype pd-multiindex
 
 `--to` names the output format when the output suffix doesn't already say it.
 `--to-mtype` converts the in-memory representation before writing. Writing to
-`.npy` produces a numpy array and accepts no other suffix.
+`.npy` accepts only data already converted to a numpy mtype with `--to-mtype`,
+for example `--to-mtype numpy3D`.
 
 ## Split a series for backtesting
 

@@ -9,15 +9,9 @@ actually named). ``registry.craft`` is used only as a fallback for non-sktime
 names, for two reasons: it crawls all of sklearn, which is slow, and the crawl
 is currently broken in lean environments.
 
-The breakage, for whoever removes this workaround: ``craft`` calls
-``_all_sklearn_estimators``, which walks the sklearn package with
-``MODULES_TO_IGNORE_SKLEARN = ["array_api_compat", "tests", "experimental"]``.
-That skips test *packages* but not ``sklearn/conftest.py``, which sits at the
-top level and imports ``pytest`` at module scope. Any environment without
-pytest therefore gets ``ModuleNotFoundError: pytest`` from a plain
-``craft("StandardScaler()")``. Adding ``"conftest"`` to that ignore list fixes
-it; verified against sktime 1.1.0. Once a release carries the fix, the
-``err.name == "pytest"`` branch below can go.
+The crawl imports ``sklearn/conftest.py``, which imports pytest at module
+scope, so ``craft`` raises ``ModuleNotFoundError: pytest`` in an environment
+without pytest. Known upstream; the fallback below handles it.
 """
 
 from __future__ import annotations
@@ -134,7 +128,7 @@ def _resolve_namespace(
             unknown.append(name)
             continue
         if not record.get("installable", True):
-            raise missing_dependency(name, record.get("python_dependencies") or [])
+            raise missing_dependency(name, _cache.unmet_dependencies(record))
         namespace[name] = _cache.import_object(record)
     return namespace, unknown
 
@@ -311,7 +305,8 @@ def apply_sets(obj, sets: list[str] | tuple):
         params[key.strip()] = parse_value(value)
     try:
         obj.set_params(**params)
-    except ValueError as err:
+    except (ValueError, KeyError) as err:
+        # nested keys raise KeyError from the composite, plain ones ValueError
         raise CliError(
             "usage",
             f"invalid --set parameter: {err}",
