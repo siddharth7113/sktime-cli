@@ -32,6 +32,27 @@ SET_OPT = typer.Option(
 )
 
 
+def _looks_like_path(data: str) -> bool:
+    """Report whether --data reads as a filename, so a miss is a missing file."""
+    if "/" in data or "\\" in data:
+        return True
+    if ":" in data:  # namespaced dataset id, e.g. ucr:ArrowHead
+        return False
+    return Path(data).suffix != ""
+
+
+def _missing_data_file(data: str) -> CliError:
+    """Report a --data path that doesn't exist, suggesting a fetch when we can."""
+    stem = Path(data).stem
+    try:
+        _datasets.resolve(stem)
+    except CliError:
+        hint = "pass an existing file, or a dataset name: sktime-cli datasets list"
+    else:
+        hint = f"fetch it first: sktime-cli datasets load {stem} --output {data}"
+    return CliError("not_found", f"file not found: {data}", hint=hint)
+
+
 def _load_input(
     data: str,
     target: str | None = None,
@@ -62,6 +83,9 @@ def _load_input(
         if exog is not None:
             X = _io.read_any(exog, index_col=index_col, freq=freq).obj
         return {"kind": "series", "y": y, "X": X}
+
+    if _looks_like_path(data):
+        raise _missing_data_file(data)
 
     source, canonical = _datasets.resolve(data)
     loaded = _datasets.load(source, canonical)

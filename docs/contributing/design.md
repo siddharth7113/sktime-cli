@@ -82,7 +82,7 @@ Estimators are given as Python-like constructor expressions:
 ```bash
 sktime-cli run fit "NaiveForecaster(sp=12)" ...
 sktime-cli run fit "Deseasonalizer() * NaiveForecaster()" ...      # pipeline
-sktime-cli run evaluate "AutoETS() + NaiveForecaster()" ...        # ensemble
+sktime-cli run fit "NaiveForecaster() | ThetaForecaster()" ...     # multiplexer
 ```
 
 Compositions need no special parser. `*`, `+`, and `|` are sktime's own

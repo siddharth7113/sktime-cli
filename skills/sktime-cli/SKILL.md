@@ -26,7 +26,9 @@ Fitted models are `.zip` artifacts on disk; there is no session state.
 - Estimators are given as **spec strings**, which are Python-like constructor
   expressions using sktime class names:
   `"NaiveForecaster(sp=12)"`, compositions with `*` (pipeline),
-  `+` (ensemble), `|` (multiplexer): `"Deseasonalizer() * NaiveForecaster()"`.
+  `|` (multiplexer), `+` (transformer union): `"Deseasonalizer() * NaiveForecaster()"`.
+  Forecaster ensembles are a class, not an operator:
+  `"EnsembleForecaster([('a', AutoETS()), ('b', NaiveForecaster())])"`.
   Override params with repeatable `--set key=value` (`__` reaches nested
   components, e.g. `--set forecaster__sp=4`).
 - `SKTIME_CLI_HOME` (default `~/.cache/sktime-cli`) holds the registry cache,

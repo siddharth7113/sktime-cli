@@ -90,8 +90,8 @@ Registry-native discovery
 
 Estimators named the way you write them in Python
 : Models are given as constructor expressions, such as
-  `"NaiveForecaster(sp=12)"`. Pipelines use `*`, ensembles use `+`, and
-  multiplexers use `|`. There is no separate syntax to learn.
+  `"NaiveForecaster(sp=12)"`. Pipelines use `*`, multiplexers use `|`, and
+  transformer unions use `+`. There is no separate syntax to learn.
 
 Many formats in, many formats out
 : csv, parquet, json, `.ts`, `.tsf`, and `.arff` go in. Every command reads
