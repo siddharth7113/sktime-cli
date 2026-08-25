@@ -142,3 +142,96 @@ def test_var_reports_the_variable_name(invoke, fitted_naive):
     payload = json.loads(result.stdout)
     assert payload["columns"] == ["variable", "value"]
     assert payload["data"][0][0] == "Number of airline passengers"
+
+
+# --------------------------------------------------------------------------
+# Click's own usage errors must obey the same contract as ours
+
+
+def test_unknown_option_is_json_under_json(invoke, tmp_path):
+    """Click rejects this before the command runs, so it bypassed handle_errors."""
+    result = invoke(
+        "run", "predict", "--model", tmp_path / "m.zip", "--bogus", "--json"
+    )
+    assert result.exit_code == 2
+    error = json.loads(result.stderr)["error"]
+    assert error["code"] == "usage"
+    assert "--bogus" in error["message"]
+
+
+def test_missing_argument_is_json_under_json(invoke):
+    result = invoke("run", "fit", "--json")
+    assert result.exit_code == 2
+    error = json.loads(result.stderr)["error"]
+    assert error["code"] == "usage"
+    assert "spec" in error["message"]
+
+
+def test_unknown_command_is_json_under_json(invoke):
+    result = invoke("frobnicate", "--json")
+    assert result.exit_code == 2
+    assert json.loads(result.stderr)["error"]["code"] == "usage"
+
+
+@pytest.mark.parametrize(
+    ("argv", "machine"),
+    [
+        (["run", "fit", "--json"], True),
+        (["run", "fit", "--format", "json"], True),
+        (["run", "fit", "--format=agent"], True),
+        (["run", "fit", "--format", "human"], False),
+        (["run", "fit", "--format=quiet"], False),
+    ],
+)
+def test_explicit_format_decides_the_error_style(monkeypatch, argv, machine):
+    """An explicit --format human beats the not-a-terminal heuristic."""
+    from sktime_cli import _guard
+
+    monkeypatch.setattr("sys.argv", ["sktime-cli", *argv])
+    assert _guard._machine_errors() is machine
+
+
+def test_nested_panel_is_not_silently_flattened(invoke, unit_test_ts, tmp_path):
+    """Writing a nested panel to csv used to emit Series reprs at exit 0."""
+    result = invoke(
+        "data", "convert", unit_test_ts, "--output", tmp_path / "p.csv", "--json"
+    )
+    assert result.exit_code == 2
+    error = json.loads(result.stderr)["error"]
+    assert "nested panel" in error["message"]
+    assert "pd-multiindex" in error["hint"]
+
+
+def test_panel_round_trips_through_the_suggested_conversion(
+    invoke, unit_test_ts, tmp_path
+):
+    out = tmp_path / "p.csv"
+    converted = invoke(
+        "data",
+        "convert",
+        unit_test_ts,
+        "--output",
+        out,
+        "--to-mtype",
+        "pd-multiindex",
+        "--json",
+    )
+    assert converted.exit_code == 0, converted.output
+
+    # index levels must be named, or the file cannot be read back with --long
+    header = out.read_text().splitlines()[0].split(",")
+    assert all(part.strip() for part in header), header
+
+    back = invoke(
+        "data",
+        "inspect",
+        out,
+        "--long",
+        "--id-col",
+        header[0],
+        "--time-col",
+        header[1],
+        "--json",
+    )
+    assert back.exit_code == 0, back.output
+    assert json.loads(back.stdout)["mtype"] == "pd-multiindex"

@@ -435,13 +435,24 @@ def write_any(
 
     if isinstance(obj, pd.Series):
         obj = obj.to_frame()
-    if obj.index.name is None and not isinstance(obj.index, pd.MultiIndex):
+    if isinstance(obj.index, pd.MultiIndex):
+        # unnamed levels write as blank CSV headers, which cannot be read back
+        # with --long; name them positionally so the round trip works
+        obj = obj.rename_axis(
+            [
+                name if name is not None else f"level_{i}"
+                for i, name in enumerate(obj.index.names)
+            ]
+        )
+    elif obj.index.name is None:
         obj = obj.rename_axis("index")
 
     if suffix == "csv":
+        _reject_nested(obj, suffix)
         obj.to_csv(path)
         return [str(path)]
     if suffix == "parquet":
+        _reject_nested(obj, suffix)
         frame = obj.copy()
         if isinstance(frame.index, pd.PeriodIndex):
             frame.index = frame.index.to_timestamp()
@@ -451,6 +462,7 @@ def write_any(
             raise missing_dependency("writing parquet", "pyarrow") from err
         return [str(path)]
     if suffix == "json":
+        _reject_nested(obj, suffix)
         payload = {
             "index": [_label(i) for i in obj.index],
             "columns": [_label(c) for c in obj.columns],
@@ -461,6 +473,47 @@ def write_any(
     if suffix == "ts":
         return [write_ts(obj, path, y=y)]
     raise CliError("usage", f"unsupported output format: {suffix}")
+
+
+def _reject_nested(obj, suffix: str) -> None:
+    """Refuse to write a nested panel to a format that cannot hold one.
+
+    sktime's ``nested_univ`` mtype stores a whole Series in each cell. Writing
+    that to a flat format silently produces cells holding the *text* of a
+    Series, which reads back as unusable object data. Failing here is the
+    difference between a clear error and quiet data loss.
+
+    Parameters
+    ----------
+    obj : pd.DataFrame
+        The object about to be written.
+    suffix : str
+        The target format, named in the error.
+
+    Raises
+    ------
+    CliError
+        ``usage`` naming the conversion that makes the data writable.
+    """
+    import pandas as pd
+
+    if not isinstance(obj, pd.DataFrame):
+        return
+    nested = [
+        str(col)
+        for col in obj.columns
+        if obj[col].dtype == object
+        and obj[col].map(lambda v: isinstance(v, pd.Series)).any()
+    ]
+    if nested:
+        raise CliError(
+            "usage",
+            f"nested panel column(s) {', '.join(nested)} cannot be written as {suffix}",
+            hint=(
+                "convert to a flat mtype first: "
+                "--to-mtype pd-multiindex (long) or --to-mtype numpy3D with .npy"
+            ),
+        )
 
 
 def write_ts(X, path: Path, y=None) -> str:

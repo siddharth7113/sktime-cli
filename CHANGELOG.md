@@ -120,6 +120,18 @@ in 0.0.1, reaching about 40% of the registry; it now dispatches on 8, reaching
   script skipping the header would consume its first row of data.
 - `run predict --var` labelled its variable column `0` while `--interval` and
   `--quantiles` used the series name. All three now agree.
+- Writing a nested panel to csv, parquet or json produced cells holding the
+  *text* of a pandas Series, at exit 0, so `data convert file.ts -o out.csv`
+  silently destroyed the data. It is now a usage error naming the conversion
+  that works, and `datasets load --file-format csv` performs that conversion
+  itself. MultiIndex levels are also named on write, so the result can be read
+  back with `--long`.
+- Click's own usage errors, such as an unknown option or a missing argument,
+  printed styled text even under `--json`, because they are raised before the
+  command runs and never reached the error handler. They now follow the same
+  contract as every other failure.
+- An explicit `--format human` was ignored when deciding how to render an
+  error, so redirecting human output to a file produced JSON errors.
 - Documentation fixes found by running every example: the `scitype:y` tag
   filter (no forecaster carries it), the `--set forecaster__sp` key (steps are
   named after their class), the `StratifiedKFold` backtest example (sktime does

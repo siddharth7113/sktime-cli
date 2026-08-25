@@ -158,8 +158,11 @@ def load(
         if ext == "ts":
             files += _io.write_any(X, output, "ts", y=y)
         else:
-            # non-.ts formats cannot carry labels inline: write y alongside X
-            files += _io.write_any(X, output, ext)
+            # non-.ts formats cannot hold nested panels or carry labels inline:
+            # flatten to long form, and write y beside X
+            from sktime.datatypes import convert_to
+
+            files += _io.write_any(convert_to(X, to_type="pd-multiindex"), output, ext)
             if y is not None:
                 import pandas as pd
 

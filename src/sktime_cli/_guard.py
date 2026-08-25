@@ -28,22 +28,42 @@ JSON_OPT = typer.Option(False, "--json", help="Shorthand for --format json.")
 def _machine_errors() -> bool:
     """Decide whether errors should be JSON rather than styled text.
 
-    This reads ``sys.argv`` directly rather than the resolved format, because
-    a command can fail before its options are parsed, and an error still has
-    to obey the contract.
+    This reads ``sys.argv`` directly rather than the resolved format, because a
+    command can fail before its options are parsed, and an error still has to
+    obey the contract.
 
     Returns
     -------
     bool
-        True when a machine format was asked for, or stdout is not a terminal.
+        True when a machine format was asked for, or when nothing was asked for
+        and stdout is not a terminal. An explicit ``--format human`` wins over
+        the terminal check, so redirecting human output to a file still gets
+        human errors.
+    """
+    requested = _requested_format()
+    if requested is not None:
+        return requested in ("json", "agent")
+    return not sys.stdout.isatty()
+
+
+def _requested_format() -> str | None:
+    """Return the format named on the command line, if one was.
+
+    Returns
+    -------
+    str or None
+        The format name, or ``None`` when the caller did not choose one and the
+        terminal should decide.
     """
     argv = sys.argv[1:]
-    if "--json" in argv or "--format=json" in argv or "--format=agent" in argv:
-        return True
-    for i, arg in enumerate(argv[:-1]):
-        if arg == "--format" and argv[i + 1] in ("json", "agent"):
-            return True
-    return not sys.stdout.isatty()
+    if "--json" in argv:
+        return "json"
+    for i, arg in enumerate(argv):
+        if arg.startswith("--format="):
+            return arg.split("=", 1)[1]
+        if arg == "--format" and i + 1 < len(argv):
+            return argv[i + 1]
+    return None
 
 
 _ROOT_VALUE_FLAGS = ("--format", "--cache-dir")
@@ -112,6 +132,70 @@ def _classify(err: Exception) -> CliError:
         message=f"{type(err).__name__}: {err}",
         detail=f"raised at {where.filename}:{where.lineno}" if where else None,
     )
+
+
+def install_usage_error_contract() -> None:
+    """Make Click's own usage errors obey the CLI's error contract.
+
+    An unknown option or a missing argument is rejected before the command
+    function runs, so ``handle_errors`` never sees it and the failure printed as
+    styled text even under ``--json``. That broke the promise that every failure
+    is one JSON object on stderr, for exactly the errors an agent hits most
+    while learning the surface.
+
+    Typer renders these through ``rich_utils.rich_format_error`` when rich is
+    installed, and through ``UsageError.show`` otherwise, so both are wrapped.
+    Human output is unchanged: the originals still run whenever the format is
+    not a machine one.
+    """
+    _patch_rich_format_error()
+    _patch_usage_error_show()
+
+
+def _usage_error_payload(err) -> dict:
+    """Build the error envelope for a Click usage error."""
+    message = err.format_message() if hasattr(err, "format_message") else str(err)
+    code = "usage" if getattr(err, "exit_code", 2) == 2 else "internal"
+    command = getattr(getattr(err, "ctx", None), "command_path", None)
+    return CliError(code, message).to_dict(_command_path() or command)
+
+
+def _patch_rich_format_error() -> None:
+    """Wrap Typer's rich error renderer, which is used when rich is installed."""
+    try:
+        from typer import rich_utils
+    except ImportError:  # pragma: no cover - rich is a hard dependency of typer
+        return
+    if getattr(rich_utils.rich_format_error, "_sktime_cli_patched", False):
+        return
+    original = rich_utils.rich_format_error
+
+    def rich_format_error(err, *args, **kwargs):
+        if not _machine_errors():
+            return original(err, *args, **kwargs)
+        print_error(_usage_error_payload(err), human=False)
+        return None
+
+    rich_format_error._sktime_cli_patched = True
+    rich_utils.rich_format_error = rich_format_error
+
+
+def _patch_usage_error_show() -> None:
+    """Wrap the plain Click renderer, used when rich markup is switched off."""
+    from typer._click.exceptions import UsageError
+
+    if getattr(UsageError, "_sktime_cli_patched", False):
+        return
+    original = UsageError.show
+
+    def show(self, file=None):
+        if not _machine_errors():
+            return original(self, file)
+        print_error(_usage_error_payload(self), human=False)
+        return None
+
+    UsageError.show = show
+    UsageError._sktime_cli_patched = True
 
 
 def handle_errors(func):

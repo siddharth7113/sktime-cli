@@ -128,7 +128,12 @@ def convert(
     path: Path = typer.Argument(..., help="Input data file."),
     output: Path = typer.Option(..., "--output", "-o", help="Output file path."),
     to: str | None = typer.Option(
-        None, "--to", help="Output file format: csv|parquet|json|ts|npy."
+        None,
+        "--to",
+        help=(
+            "Output file format: csv|parquet|json|ts. "
+            "npy works only with --to-mtype numpy3D."
+        ),
     ),
     to_mtype: str | None = typer.Option(
         None, "--to-mtype", help="Convert to an sktime mtype first, e.g. pd-multiindex."

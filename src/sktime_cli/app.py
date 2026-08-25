@@ -8,6 +8,7 @@ import typer
 
 from sktime_cli import __version__, _cache
 from sktime_cli._errors import CliError
+from sktime_cli._guard import install_usage_error_contract
 from sktime_cli._output import OutputFormat, set_root_format
 
 app = typer.Typer(
@@ -106,6 +107,7 @@ def _register_commands() -> None:
 
 
 _register_commands()
+install_usage_error_contract()
 
 
 def main() -> None:
