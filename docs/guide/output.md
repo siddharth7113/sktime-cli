@@ -14,9 +14,71 @@ without filtering noise out of it first:
 sktime-cli registry search forecaster --json | jq 'length'
 ```
 
+```{code-block} text
+:caption: Output
+
+153
+```
+
+The result count that `human` and `agent` print at the end of a listing goes
+to stderr, so it never reaches `jq`.
+
 ## Formats
 
-`--format` takes five values, and `--json` is shorthand for `--format json`:
+`--format` takes five values, and `--json` is shorthand for `--format json`.
+The same command in each, so you can see what changes:
+
+```bash
+sktime-cli data split airline.csv --test-size 12 --format human
+```
+
+```{code-block} text
+:caption: Output
+
+train    airline_train.csv
+test     airline_test.csv
+n_train  132
+n_test   12
+files    ["airline_train.csv", "airline_test.csv"]
+```
+
+```bash
+sktime-cli data split airline.csv --test-size 12 --format agent
+```
+
+```{code-block} text
+:caption: Output
+
+train	airline_train.csv
+test	airline_test.csv
+n_train	132
+n_test	12
+files	["airline_train.csv", "airline_test.csv"]
+```
+
+```bash
+sktime-cli data split airline.csv --test-size 12 --format json
+```
+
+```{code-block} text
+:caption: Output
+
+{"train": "airline_train.csv", "test": "airline_test.csv", "n_train": 132, "n_test": 12, "files": ["airline_train.csv", "airline_test.csv"]}
+```
+
+```bash
+sktime-cli data split airline.csv --test-size 12 --format quiet
+```
+
+```{code-block} text
+:caption: Output
+
+airline_train.csv airline_test.csv
+```
+
+Same fields throughout: `human` aligns them, `agent` tabs them, `json` types
+them, and `quiet` keeps only the part you would pipe somewhere. What each one
+is for:
 
 `auto`
 : The default. Resolves to `human` when stdout is a terminal and `agent`

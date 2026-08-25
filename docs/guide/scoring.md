@@ -22,9 +22,15 @@ sktime-cli metrics score --true airline_test.csv --pred pred.csv \
 
 The output is one field per metric:
 
-```json
-{"MeanAbsolutePercentageError": 0.0998, "MeanAbsoluteError": 47.83}
+```{code-block} text
+:caption: Output
+
+MeanAbsolutePercentageError  0.09987532920823484
+MeanAbsoluteError            47.833333333333336
 ```
+
+Ask for both and read them together. 10% error sounds tolerable until
+`MeanAbsoluteError` puts it at 48 passengers a month.
 
 `--metric` is repeatable and takes either a name or a spec string, so a metric
 can be parameterized the same way an estimator is:
@@ -44,12 +50,43 @@ sktime-cli metrics score --true airline_test.csv --pred pred.csv \
     --train airline_train.csv
 ```
 
+```{code-block} text
+:caption: Output
+
+MeanAbsoluteScaledError  1.986106708927628
+```
+
+Above 1 means a one-step naive forecast on the training data would have done
+better. Omit `--train` and the command says the metric needs it rather than
+returning a wrong number.
+
 ### Finding a metric
 
 ```bash
-sktime-cli metrics list --json
 sktime-cli metrics list metric_forecasting -n Absolute
 ```
+
+```{code-block} text
+:caption: Output
+
+ name                                scitypes                          lower_is_better  installable
+ GeometricMeanAbsoluteError          ["metric_forecasting", "metric"]  true             true
+ GeometricMeanRelativeAbsoluteError  ["metric_forecasting", "metric"]  true             true
+ MeanAbsoluteError                   ["metric_forecasting", "metric"]  true             true
+ MeanAbsolutePercentageError         ["metric_forecasting", "metric"]  true             true
+ MeanAbsolutePercentageErrorStabil…  ["metric_forecasting", "metric"]  true             true
+ MeanAbsoluteScaledError             ["metric_forecasting", "metric"]  true             true
+ MeanArctangentAbsolutePercentageE…  ["metric_forecasting", "metric"]  true             true
+ MeanRelativeAbsoluteError           ["metric_forecasting", "metric"]  true             true
+ MedianAbsoluteError                 ["metric_forecasting", "metric"]  true             true
+ MedianAbsolutePercentageError       ["metric_forecasting", "metric"]  true             true
+ MedianAbsoluteScaledError           ["metric_forecasting", "metric"]  true             true
+ MedianRelativeAbsoluteError         ["metric_forecasting", "metric"]  true             true
+12 result(s)
+```
+
+Drop the scitype and the `-n` filter to list all 46, and add `--json` for the
+machine-readable form.
 
 Each row reports `lower_is_better`, which is what tells you the direction to
 optimize. These are sktime's metric objects, so they are for forecasting.
@@ -64,15 +101,23 @@ Classification and regression are scored per instance, and `run evaluate` takes
 sktime-cli check "NaiveForecaster(sp=12)"
 ```
 
+```{code-block} text
+:caption: Output
+
+ test                                                          status  detail
+ test_X_invalid_type_raises_error[NaiveForecaster-y:1cols-0]   pass
+ test_X_invalid_type_raises_error[NaiveForecaster-y:1cols-1]   pass
+ test__y_and_cutoff[NaiveForecaster-y:1cols]                   pass
+ test__y_when_refitting[NaiveForecaster-y:1cols]               pass
+ ...
+378 result(s)
+total   378
+passed  378
+failed  0
 ```
-test                                    status  detail
-test_constructor[NaiveForecaster]       pass
-test_fit_idempotent[NaiveForecaster-0]  pass
-...
-total    379
-passed   379
-failed   0
-```
+
+The check suite runs under pytest, which sktime treats as a developer
+dependency. Without it the command exits with code `3` and names it.
 
 The exit code is `1` when any check fails, so this works in CI. Use
 `--failed-only` to see just the failures, and `--tests` or `--exclude` to narrow
@@ -81,6 +126,18 @@ the run to particular test names:
 ```bash
 sktime-cli check "MyForecaster()" --failed-only --json
 sktime-cli check "NaiveForecaster()" --tests test_constructor,test_get_params
+```
+
+```{code-block} text
+:caption: Output
+
+ test                               status  detail
+ test_constructor[NaiveForecaster]  pass
+ test_get_params[NaiveForecaster]   pass
+2 result(s)
+total   2
+passed  2
+failed  0
 ```
 
 Two things this is good for. If you have written your own estimator, it tells
@@ -99,7 +156,40 @@ the setup by hand.
 
 ```bash
 sktime-cli catalogues list
+```
+
+```{code-block} text
+:caption: Output
+
+ name                             catalogue_type  installable
+ BakeOffCatalogue                 mixed           false
+ DummyClassificationCatalogue     mixed           true
+ DummyForecastingCatalogue        mixed           true
+ M4CompetitionCatalogueDaily      mixed           true
+ M4CompetitionCatalogueHourly     mixed           true
+ M4CompetitionCatalogueMonthly    mixed           true
+ M4CompetitionCatalogueQuarterly  mixed           true
+ M4CompetitionCatalogueWeekly     mixed           true
+ M4CompetitionCatalogueYearly     mixed           true
+9 result(s)
+```
+
+```bash
 sktime-cli catalogues get M4CompetitionCatalogueYearly
+```
+
+```{code-block} text
+:caption: Output
+
+name            M4CompetitionCatalogueYearly
+catalogue_type  mixed
+categories      ["dataset", "forecaster", "metric"]
+entries         ["ForecastingData('m4_yearly_dataset')", "NaiveForecaster(strategy='last')",
+                "ExponentialSmoothing(trend=None, seasonal=None)",
+                "ExponentialSmoothing(trend='add', seasonal=None)",
+                "ExponentialSmoothing(trend='add', damped_trend=True)", "ThetaForecaster()",
+                "AutoARIMA()", "AutoETS()", ...,
+                "MeanAbsolutePercentageError(symmetric=True)", "MeanAbsoluteScaledError()"]
 ```
 
 `get` returns the entries as spec strings, which is what makes them useful: each
@@ -109,9 +199,12 @@ one can be passed straight back to `run` or to `--cv`.
 sktime-cli catalogues get DummyForecastingCatalogue --json
 ```
 
-```json
+```{code-block} text
+:caption: Output, formatted for readability
+
 {
   "name": "DummyForecastingCatalogue",
+  "catalogue_type": "mixed",
   "categories": ["dataset", "forecaster", "metric", "cv_splitter"],
   "entries": ["Airline", "NaiveForecaster(strategy='last')",
               "MeanAbsoluteError()", "MeanAbsolutePercentageError()",

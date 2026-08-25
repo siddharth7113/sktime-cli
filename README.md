@@ -128,7 +128,7 @@ For a longer walkthrough, see the
 | *(top level)* | `check` · `version` · `env` · `doctor` · `cache` | Validate an object against sktime's API, environment info, health check, workspace |
 
 Every option is listed in the
-[CLI reference](https://sktime-cli.readthedocs.io/en/latest/reference/cli.html),
+[CLI reference](https://sktime-cli.readthedocs.io/en/latest/reference/cli/index.html),
 which is generated from the application itself.
 
 ## Built for AI agents
@@ -189,7 +189,7 @@ Full documentation is at
 - [Working with data](https://sktime-cli.readthedocs.io/en/latest/guide/data.html)
 - [Fitting and evaluating models](https://sktime-cli.readthedocs.io/en/latest/guide/modeling.html)
 - [Output formats and errors](https://sktime-cli.readthedocs.io/en/latest/guide/output.html)
-- [CLI reference](https://sktime-cli.readthedocs.io/en/latest/reference/cli.html)
+- [CLI reference](https://sktime-cli.readthedocs.io/en/latest/reference/cli/index.html)
 - [Architecture](https://sktime-cli.readthedocs.io/en/latest/contributing/architecture.html)
   and [design decisions](https://sktime-cli.readthedocs.io/en/latest/contributing/design.html)
 

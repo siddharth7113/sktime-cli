@@ -12,6 +12,16 @@ Usage in a MyST document::
     ```{typer-cli} sktime_cli.app:app
     :prog: sktime-cli
     ```
+
+The reference is split over one page per command group, so a page names the
+subtree it documents with ``:command:`` and the landing page suppresses
+recursion with ``:no-subcommands:``::
+
+    ```{typer-cli} sktime_cli.app:app
+    :prog: sktime-cli
+    :command: run
+    :no-heading:
+    ```
 """
 
 from __future__ import annotations
@@ -108,16 +118,31 @@ def _param_lines(title: str, params: list) -> list[str]:
 
 
 def _command_lines(
-    command, path: list[str], depth: int, globals_: frozenset[str] = frozenset()
+    command,
+    path: list[str],
+    depth: int,
+    globals_: frozenset[str] = frozenset(),
+    recurse: bool = True,
+    heading: bool = True,
 ) -> list[str]:
     """Render ``command`` and, for groups, every visible subcommand.
 
     Options in ``globals_`` are documented once on the root command and
     skipped everywhere else, which keeps ``--format`` and ``--json`` from
     repeating on all 20 leaf commands.
+
+    With ``recurse`` false, a group contributes its own options and the
+    summary list of its subcommands but not their bodies. That is what the
+    reference landing page renders, since each group is documented on its own
+    page.
+
+    With ``heading`` false, the command's own heading is omitted, for a page
+    whose title already names it. Subcommands still get headings.
     """
     title = " ".join(path)
-    lines = ["#" * (_BASE_LEVEL + depth) + f" `{title}`", ""]
+    lines = []
+    if heading:
+        lines = ["#" * (_BASE_LEVEL + depth) + f" `{title}`", ""]
 
     help_text = _clean(command.help)
     if help_text:
@@ -156,33 +181,68 @@ def _command_lines(
         for name, child in children:
             lines.append(f"`{name}`")
             lines.extend([f": {_short_help(child) or 'No description.'}", ""])
-    for name, child in children:
-        lines.extend(_command_lines(child, path + [name], depth + 1, globals_))
+    if recurse:
+        child_depth = depth + 1 if heading else depth
+        for name, child in children:
+            lines.extend(_command_lines(child, path + [name], child_depth, globals_))
     return lines
 
 
+def _descend(root, path: list[str]):
+    """Walk ``path`` from ``root`` and return the command it names."""
+    command = root
+    for name in path:
+        children = getattr(command, "commands", None) or {}
+        if name not in children:
+            raise ValueError(f"no such command: {' '.join(path)}")
+        command = children[name]
+    return command
+
+
 class TyperCliDirective(Directive):
-    """Document a Typer application and all of its subcommands."""
+    """Document a Typer application, or one command group within it."""
 
     has_content = False
     required_arguments = 1
-    option_spec = {"prog": directives.unchanged}
+    option_spec = {
+        "prog": directives.unchanged,
+        "command": directives.unchanged,
+        "no-subcommands": directives.flag,
+        "no-heading": directives.flag,
+    }
 
     def run(self):
         """Build the command reference for the configured application."""
         import typer.main
 
         app = _load(self.arguments[0])
-        command = typer.main.get_command(app)
-        prog = self.options.get("prog") or command.name or "cli"
+        root = typer.main.get_command(app)
+        prog = self.options.get("prog") or root.name or "cli"
 
+        # Global options live on the root command. They are documented once,
+        # on the landing page, and suppressed on every other command so that
+        # --format and --json don't repeat on all 20 leaf commands.
         globals_ = frozenset(
             opt
-            for param in command.params
+            for param in root.params
             if not type(param).__name__.endswith("Argument")
             for opt in param.opts
         )
-        lines = _command_lines(command, [prog], 0, globals_)
+
+        path = self.options.get("command", "").split()
+        try:
+            command = _descend(root, path)
+        except ValueError as exc:
+            raise self.error(f"typer-cli: {exc}") from exc
+
+        lines = _command_lines(
+            command,
+            [prog, *path],
+            0,
+            globals_ if path else frozenset(),
+            recurse="no-subcommands" not in self.options,
+            heading="no-heading" not in self.options,
+        )
         node = nodes.section()
         node.document = self.state.document
         self.state.nested_parse(

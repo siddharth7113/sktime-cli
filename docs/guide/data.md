@@ -11,7 +11,38 @@ files are read, and how to prepare them for a run.
 
 ```bash
 sktime-cli datasets list --source builtin
+```
+
+```{code-block} text
+:caption: Output
+
+ name                        source   task        offline  installable
+ acsf1                       builtin  classifier  true     true
+ airline                     builtin  forecaster  true     true
+ arrow_head                  builtin  classifier  true     true
+ basic_motions               builtin  classifier  true     true
+ gun_point                   builtin  classifier  true     true
+ hierarchical_sales_toydata  builtin  forecaster  true     true
+ ...
+ m5_forecasting_accuracy     builtin  forecaster  false    true
+ ...
+21 result(s)
+```
+
+Check `offline` before running without a network: `false` means the dataset
+downloads on first use.
+
+```bash
 sktime-cli datasets list --task classifier -n arrow
+```
+
+```{code-block} text
+:caption: Output
+
+ name           source   task        offline  installable
+ arrow_head     builtin  classifier  true     true
+ ucr:ArrowHead  ucr      classifier  false    true
+2 result(s)
 ```
 
 `--source` takes `builtin`, `ucr`, `tsf`, or `fpp3`. `--task` takes sktime's
@@ -25,10 +56,42 @@ source note for a remote one. It never downloads:
 sktime-cli datasets describe airline
 ```
 
+```{code-block} text
+:caption: Output
+
+name                airline
+source              builtin
+task                forecaster
+installable         true
+n_splits            0
+task_type           ["forecaster"]
+is_univariate       true
+is_equally_spaced   true
+has_nans            false
+has_exogenous       false
+n_instances         1
+n_timepoints        144
+frequency           M
+n_dimensions        1
+is_one_series       true
+shape               [144]
+index_type          PeriodIndex
+```
+
 `datasets load` fetches a dataset and writes it to disk:
 
 ```bash
 sktime-cli datasets load airline --output airline.csv
+```
+
+```{code-block} text
+:caption: Output
+
+dataset  airline
+source   builtin
+task     forecaster
+shape    [144]
+files    ["airline.csv"]
 ```
 
 The command prints a manifest of exactly which files it wrote. Panel datasets
@@ -63,6 +126,29 @@ describe` can answer without reading the data at all:
 sktime-cli datasets describe airline --no-load
 ```
 
+```{code-block} text
+:caption: Output
+
+name                airline
+source              builtin
+task                forecaster
+installable         true
+n_splits            0
+task_type           ["forecaster"]
+is_univariate       true
+is_equally_spaced   true
+has_nans            false
+has_exogenous       false
+n_instances         1
+n_timepoints        144
+frequency           M
+n_dimensions        1
+is_one_series       true
+```
+
+The same record without `shape` and `index_type`, the two fields that require
+loading the data.
+
 That reports the task, frequency, length, dimensionality, whether the series
 is univariate and equally spaced, whether it has exogenous columns, and how
 many splits it defines. Drop `--no-load` to add the loaded shape and, for
@@ -79,6 +165,19 @@ inspect`:
 
 ```bash
 sktime-cli data inspect airline.csv
+```
+
+```{code-block} text
+:caption: Output
+
+path      airline.csv
+scitype   Series
+mtype     pd.Series
+shape     [144]
+metadata  {"dtypekind_dfip": [2], "feature_kind": [2], "feature_names": ["Number of airline
+          passengers"], "has_nans": false, "is_empty": false, "is_equally_spaced": true,
+          "is_univariate": true, "n_features": 1}
+index     {"type": "PeriodIndex", "dtype": "period[M]", "start": "1949-01", "end": "1960-12"}
 ```
 
 The command routes the file through sktime's `check_is_scitype` and reports
@@ -128,9 +227,45 @@ csv|parquet|json|ts|tsf|arff`.
 
 ```bash
 sktime-cli data convert airline.csv --output airline.parquet
+```
+
+```{code-block} text
+:caption: Output
+
+input   airline.csv
+files   ["airline.parquet"]
+mtype
+format
+```
+
+```bash
 sktime-cli data convert airline.csv --output airline.json --to json
+```
+
+```{code-block} text
+:caption: Output
+
+input   airline.csv
+files   ["airline.json"]
+mtype
+format  json
+```
+
+```bash
 sktime-cli data convert panel.ts --output panel.csv --to-mtype pd-multiindex
 ```
+
+```{code-block} text
+:caption: Output
+
+input   panel.ts
+files   ["panel.csv"]
+mtype   pd-multiindex
+format
+```
+
+The `mtype` and `format` fields report only what you asked to change. A blank
+means the conversion left that alone.
 
 `--to` names the output format when the output suffix doesn't already say it.
 `--to-mtype` converts the in-memory representation before writing. Writing to
@@ -144,6 +279,16 @@ file:
 
 ```bash
 sktime-cli data split airline.csv --test-size 12
+```
+
+```{code-block} text
+:caption: Output
+
+train    airline_train.csv
+test     airline_test.csv
+n_train  132
+n_test   12
+files    ["airline_train.csv", "airline_test.csv"]
 ```
 
 Size the test set in one of three ways, and pass only one of them:
@@ -171,6 +316,21 @@ sktime-cli data split airline.csv \
     --cv "ExpandingWindowSplitter(initial_window=72, step_length=12, fh=[1,2,3])"
 ```
 
+```{code-block} text
+:caption: Output
+
+splitter  ExpandingWindowSplitter(fh=[1, 2, 3], initial_window=72, step_length=12)
+n_folds   6
+folds     [{"fold": 0, "n_train": 72, "n_test": 3, "train": "airline_fold0_train.csv", "test":
+          "airline_fold0_test.csv"}, {"fold": 1, "n_train": 84, "n_test": 3, "train":
+          "airline_fold1_train.csv", "test": "airline_fold1_test.csv"}, ...]
+files     ["airline_fold0_train.csv", "airline_fold0_test.csv", "airline_fold1_train.csv",
+          "airline_fold1_test.csv", ...]
+```
+
+`n_train` grows by `step_length` each fold while `n_test` stays at the length
+of `fh`. That is what "expanding window" means.
+
 The files are named `<stem>_fold<N>_train<suffix>` and
 `<stem>_fold<N>_test<suffix>`, and the command prints a manifest with the fold
 count and each fold's sizes and paths. `--cv` replaces the sizing options
@@ -193,5 +353,5 @@ the training data:
 ## What to read next
 
 - [Fitting and evaluating models](modeling.md) to use these files in a run.
-- [CLI reference](../reference/cli.md) for every option on `datasets` and
+- [CLI reference](../reference/cli/index.md) for every option on `datasets` and
   `data`.
